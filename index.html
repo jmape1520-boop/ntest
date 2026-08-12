@@ -349,6 +349,7 @@
         <button class="secondary" onclick="agregarItemCarrito()" type="button"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>Agregar ítem</button>
       </div>
       <div id="v-carrito"></div>
+      <div id="v-empaque-wrap" style="display:none;"></div>
       <div class="row" id="v-codigo-vendedor-wrap" style="display:none;">
         <input type="text" id="v-codigo-vendedor" placeholder="Código de vendedor (opcional)" style="text-transform:uppercase;">
       </div>
@@ -494,6 +495,22 @@
         <input type="number" id="i-reorden" placeholder="Punto de reorden (ej. 3)" min="0">
       </div>
       <div class="row">
+        <select id="i-unidad">
+          <option value="unidad">Unidades</option>
+          <option value="kg">Kilogramos</option>
+          <option value="g">Gramos</option>
+          <option value="lb">Libras</option>
+          <option value="oz">Onzas</option>
+          <option value="l">Litros</option>
+          <option value="ml">Mililitros</option>
+        </select>
+        <select id="i-tamano">
+          <option value="chico">Tamaño: Chico</option>
+          <option value="mediano">Tamaño: Mediano</option>
+          <option value="grande">Tamaño: Grande</option>
+        </select>
+      </div>
+      <div class="row">
         <input type="number" id="i-precio" placeholder="Precio de venta (con impuesto)" step="0.01">
         <button class="secondary" type="button" onclick="abrirCalculadoraCostos('i-precio')"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px;"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="8" y1="10" x2="10" y2="10"></line><line x1="14" y1="10" x2="16" y2="10"></line><line x1="8" y1="14" x2="10" y2="14"></line><line x1="14" y1="14" x2="16" y2="14"></line></svg>Calculadora de costos</button>
       </div>
@@ -504,6 +521,23 @@
       </div>
       <div class="row">
         <label class="check-line"><input type="checkbox" id="i-qr"> Generar código QR</label>
+      </div>
+      <div class="row">
+        <label class="check-line"><input type="checkbox" id="i-es-insumo" onchange="onEsInsumoChange()"> Es un insumo de servicio (bolsa, plato, cubierto)</label>
+      </div>
+      <div id="i-insumo-wrap" style="display:none;">
+        <div class="row">
+          <select id="i-modo-consumo" onchange="onModoConsumoChange()">
+            <option value="capacidad">Se calcula por capacidad (bolsas, envases)</option>
+            <option value="porUnidad">Se calcula 1 a 1 con lo vendido (cubiertos, platos)</option>
+          </select>
+        </div>
+        <div class="row" id="i-campo-capacidad">
+          <input type="number" id="i-capacidad" placeholder="Caben cuántos productos chicos (ej. 3)" min="1">
+        </div>
+        <div class="row" id="i-campo-multiplicador" style="display:none;">
+          <input type="number" id="i-multiplicador" placeholder="Cuántos por producto vendido (ej. 1)" min="0" step="0.5">
+        </div>
       </div>
       <div class="row">
         <button onclick="agregarProducto()">Agregar producto</button>
@@ -520,6 +554,7 @@
         <input type="text" id="if-texto" placeholder="Nombre, código, grupo o categoría" oninput="render()">
         <select id="if-categoria" onchange="render()"><option value="">Todas las categorías</option></select>
         <label class="check-line"><input type="checkbox" id="if-solo-variantes" onchange="render()"> Solo con variantes</label>
+        <label class="check-line"><input type="checkbox" id="if-solo-insumos" onchange="render()"> Solo insumos de servicio</label>
         <button class="mini" onclick="limpiarFiltroInventario()">Limpiar</button>
       </div>
       <div id="lista-inventario"></div>
@@ -661,6 +696,14 @@
       </div>
     </div>
 
+    <div class="accordion" id="acc-empaque">
+      <div class="accordion-head" onclick="toggleAccordion('acc-empaque')"><span>Empaque</span><span class="chev">▾</span></div>
+      <div class="accordion-body">
+        <p class="hint">Si vendés con bolsas, platos, cubiertos u otros insumos, activá esto para que Ventas te sugiera solos cuántos usar en cada venta (los marcás como "insumo de servicio" en Inventario).</p>
+        <div class="row"><label class="check-line"><input type="checkbox" id="c-sugerencia-empaque" onchange="guardarConfig()"> Activar sugerencia de empaque</label></div>
+      </div>
+    </div>
+
     <div class="accordion" id="acc-datos">
       <div class="accordion-head" onclick="toggleAccordion('acc-datos')"><span>Datos</span><span class="chev">▾</span></div>
       <div class="accordion-body">
@@ -770,6 +813,7 @@ function normalizarEstado(){
     if(v.fechaPago===undefined) v.fechaPago=v.fecha;
     if(v.codigoVenta===undefined) v.codigoVenta='V-'+String(v.id).slice(-6);
     if(v.registradoPor===undefined) v.registradoPor={uid:null, nombre:'—'};
+    if(v.insumosUsados===undefined) v.insumosUsados=[];
     if(!v.items){
       // Migración desde el formato viejo de un solo producto por venta
       v.items = [{ codigo:v.codigo||'', producto:v.producto||'', cantidad:v.cantidad||1, precioUnit:v.precio||0, totalBruto:v.totalBruto||v.total||0, promoAplicada:v.promoAplicada||null, descuentoMonto:v.descuentoMonto||0, total:v.total||0 }];
@@ -783,12 +827,23 @@ function normalizarEstado(){
       }
     });
   });
-  state.inventario.forEach(p=>{ if(p.qr===undefined) p.qr=false; if(p.categoria===undefined) p.categoria=''; if(p.grupoNombre===undefined) p.grupoNombre=null; });
+  state.inventario.forEach(p=>{
+    if(p.qr===undefined) p.qr=false;
+    if(p.categoria===undefined) p.categoria='';
+    if(p.grupoNombre===undefined) p.grupoNombre=null;
+    if(p.unidad===undefined) p.unidad='unidad';
+    if(p.tamano===undefined) p.tamano='chico';
+    if(p.esInsumo===undefined) p.esInsumo=false;
+    if(p.modoConsumo===undefined) p.modoConsumo='capacidad';
+    if(p.capacidad===undefined) p.capacidad=1;
+    if(p.multiplicador===undefined) p.multiplicador=1;
+  });
   state.promociones.forEach(p=>{ if(p.fechaInicio===undefined){ p.fechaInicio=null; p.fechaFin=null; } });
   if(!state.codigoVendedor) state.codigoVendedor = { codigo:'', tipo:'pct', valor:0, limiteMensual:0, activo:false, usos:{mesActual:'', cantidad:0} };
   state.combos = state.combos || [];
   state.calculosCosto = state.calculosCosto || [];
   state.combos.forEach(c=>{ if(c.activo===undefined) c.activo=true; if(c.qr===undefined) c.qr=false; c.componentes.forEach(comp=>{ if(comp.tipo===undefined) comp.tipo='producto'; }); });
+  if(state.config.sugerenciaEmpaque===undefined) state.config.sugerenciaEmpaque = false;
 }
 
 const ICONO_TAG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M20.59 13.41 11 3.83 3.83 11l9.58 9.59a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.83Z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg>';
@@ -828,6 +883,7 @@ async function cargarDatosTienda(){
   document.getElementById('cv-valor').value = state.codigoVendedor.valor;
   document.getElementById('cv-limite').value = state.codigoVendedor.limiteMensual;
   document.getElementById('cv-activo').checked = state.codigoVendedor.activo;
+  document.getElementById('c-sugerencia-empaque').checked = state.config.sugerenciaEmpaque;
   render();
 }
 async function guardar(){
@@ -835,6 +891,12 @@ async function guardar(){
   try{ await window.fb.guardarDatosTienda(currentTiendaId, state); }catch(e){ console.error(e); }
 }
 function fmt(n){ return state.config.moneda + Number(n||0).toFixed(2); }
+const ETIQUETA_UNIDAD = { unidad:'u', kg:'kg', g:'g', lb:'lb', oz:'oz', l:'l', ml:'ml' };
+function fmtCantidad(cantidad, unidad){
+  const u = ETIQUETA_UNIDAD[unidad] || 'u';
+  const num = unidad==='unidad' ? Number(cantidad||0).toString() : Number(cantidad||0).toString();
+  return `${num} ${u}`;
+}
 
 function mensajeErrorAuth(err){
   const c = err && err.code || '';
@@ -1383,6 +1445,7 @@ function cambiarPais(){
 function guardarConfig(){
   state.config.tasa = parseFloat(document.getElementById('c-tasa').value) || 0;
   state.config.moneda = document.getElementById('c-moneda').value || '$';
+  state.config.sugerenciaEmpaque = document.getElementById('c-sugerencia-empaque').checked;
   guardar(); render();
 }
 function limpiarFiltro(p){
@@ -1714,12 +1777,63 @@ function quitarItemCarrito(idx){
 function renderCarrito(){
   const el = document.getElementById('v-carrito');
   if(!el) return;
-  if(!carritoActual.length){ el.innerHTML=''; return; }
+  if(!carritoActual.length){ el.innerHTML=''; renderSugerenciaEmpaque(); return; }
   const totalCarrito = carritoActual.reduce((s,it)=>s+it.total,0);
   el.innerHTML = `<div class="card" style="background:var(--primary-soft);box-shadow:none;">` +
     carritoActual.map((it,i)=>`<div class="row" style="justify-content:space-between;flex-wrap:nowrap;margin-bottom:6px;"><span style="font-size:13px;">${it.cantidad}x ${it.producto}${it.promoAplicada?' '+ICONO_TAG:''}</span><span style="display:flex;align-items:center;gap:6px;"><span class="num" style="font-size:13px;">${fmt(it.total)}</span><button class="mini" onclick="quitarItemCarrito(${i})">${ICONO_X}</button></span></div>`).join('') +
     `<div class="row" style="justify-content:space-between;font-weight:700;margin:0;"><span>Total del carrito</span><span>${fmt(totalCarrito)}</span></div>
     </div>`;
+  renderSugerenciaEmpaque();
+}
+
+const PESO_TAMANO = { chico:1, mediano:2, grande:3 };
+function calcularSugerenciaEmpaque(){
+  if(!state.config.sugerenciaEmpaque || !carritoActual.length) return [];
+  const insumos = state.inventario.filter(p=>p.esInsumo);
+  if(!insumos.length) return [];
+  const totalUnidades = carritoActual.reduce((s,it)=>s+it.cantidad,0);
+  let espacioTotal = 0;
+  carritoActual.forEach(it=>{
+    if(it.esCombo){ espacioTotal += PESO_TAMANO.mediano * it.cantidad; return; }
+    const p = state.inventario.find(x=>x.codigo===it.codigo);
+    espacioTotal += (PESO_TAMANO[p?p.tamano:'chico']||1) * it.cantidad;
+  });
+  const sugerencias = [];
+  insumos.filter(i=>i.modoConsumo==='porUnidad').forEach(i=>{
+    const cant = Math.ceil(totalUnidades * (i.multiplicador||1));
+    if(cant>0) sugerencias.push({codigo:i.codigo, producto:i.producto, cantidad:cant});
+  });
+  const bolsas = insumos.filter(i=>i.modoConsumo==='capacidad').sort((a,b)=>b.capacidad-a.capacidad);
+  let restante = espacioTotal;
+  bolsas.forEach((b,idx)=>{
+    if(restante<=0) return;
+    const cap = b.capacidad || 1;
+    let cant = Math.floor(restante/cap);
+    restante -= cant*cap;
+    if(idx===bolsas.length-1 && restante>0){ cant += 1; restante = 0; }
+    if(cant>0) sugerencias.push({codigo:b.codigo, producto:b.producto, cantidad:cant});
+  });
+  return sugerencias;
+}
+function renderSugerenciaEmpaque(){
+  const wrap = document.getElementById('v-empaque-wrap');
+  if(!wrap) return;
+  if(!state.config.sugerenciaEmpaque || !carritoActual.length){ wrap.style.display = 'none'; wrap.innerHTML=''; return; }
+  const sugerencias = calcularSugerenciaEmpaque();
+  if(!sugerencias.length){ wrap.style.display = 'none'; wrap.innerHTML=''; return; }
+  wrap.style.display = 'block';
+  wrap.innerHTML = `<div class="card" style="box-shadow:none;border:1.5px dashed var(--line);">
+    <p class="hint" style="margin:0 0 8px;font-weight:700;">Insumos sugeridos (podés ajustarlos):</p>
+    ${sugerencias.map((s,i)=>`<div class="row"><span style="flex:1;font-size:13px;align-self:center;">${s.producto}</span><input type="number" id="ve-insumo-${i}" value="${s.cantidad}" min="0" style="max-width:80px;" data-codigo="${s.codigo}"></div>`).join('')}
+  </div>`;
+}
+function leerInsumosSugeridos(){
+  const wrap = document.getElementById('v-empaque-wrap');
+  if(!wrap) return [];
+  return Array.from(wrap.querySelectorAll('input[data-codigo]')).map(inp=>({
+    codigo: inp.dataset.codigo,
+    cantidad: parseFloat(inp.value) || 0
+  })).filter(x=>x.cantidad>0);
 }
 
 function finalizarVenta(){
@@ -1757,7 +1871,8 @@ function finalizarVenta(){
   const impuesto = totalFinal - subtotal;
 
   const ventaId = Date.now();
-  const venta = {id:ventaId, codigoVenta:'V-'+String(ventaId).slice(-6), fecha:new Date().toISOString().slice(0,10), items: carritoActual.map(it=>({...it})), cliente, metodoPago, estadoPago: metodoPago==='fiado' ? 'pendiente' : 'pagado', fechaPago: metodoPago==='fiado' ? null : new Date().toISOString().slice(0,10), registradoPor: {uid:currentUid, nombre:currentNombre||'—'}, totalBruto, vendedorAplicado, vendedorDescuentoMonto, descuentoMonto, subtotal, impuesto, total:totalFinal, historial:[], enviado:false, requiereEnvio, envio};
+  const insumosUsados = leerInsumosSugeridos();
+  const venta = {id:ventaId, codigoVenta:'V-'+String(ventaId).slice(-6), fecha:new Date().toISOString().slice(0,10), items: carritoActual.map(it=>({...it})), cliente, metodoPago, estadoPago: metodoPago==='fiado' ? 'pendiente' : 'pagado', fechaPago: metodoPago==='fiado' ? null : new Date().toISOString().slice(0,10), registradoPor: {uid:currentUid, nombre:currentNombre||'—'}, totalBruto, vendedorAplicado, vendedorDescuentoMonto, descuentoMonto, subtotal, impuesto, total:totalFinal, historial:[], enviado:false, requiereEnvio, envio, insumosUsados};
   state.ventas.unshift(venta);
   carritoActual.forEach(it=>{
     if(it.esCombo){
@@ -1769,6 +1884,10 @@ function finalizarVenta(){
       const item = state.inventario.find(p=>p.codigo===it.codigo);
       if(item) item.stock = Math.max(0, item.stock - it.cantidad);
     }
+  });
+  insumosUsados.forEach(ins=>{
+    const item = state.inventario.find(p=>p.codigo===ins.codigo);
+    if(item) item.stock = Math.max(0, item.stock - ins.cantidad);
   });
   carritoActual = [];
   renderCarrito();
@@ -2065,6 +2184,15 @@ function borrarGasto(id){
   confirmarAccion('¿Eliminar este gasto?', ()=>{ state.gastos = state.gastos.filter(g=>g.id!==id); guardar(); render(); });
 }
 
+function onEsInsumoChange(){
+  const es = document.getElementById('i-es-insumo').checked;
+  document.getElementById('i-insumo-wrap').style.display = es ? 'block' : 'none';
+}
+function onModoConsumoChange(){
+  const modo = document.getElementById('i-modo-consumo').value;
+  document.getElementById('i-campo-capacidad').style.display = modo==='capacidad' ? 'flex' : 'none';
+  document.getElementById('i-campo-multiplicador').style.display = modo==='porUnidad' ? 'flex' : 'none';
+}
 async function agregarProducto(){
   const producto = document.getElementById('i-producto').value.trim().toUpperCase();
   const categoria = document.getElementById('i-categoria').value.trim();
@@ -2072,12 +2200,18 @@ async function agregarProducto(){
   const reorden = parseFloat(document.getElementById('i-reorden').value) || 0;
   const precioVenta = parseFloat(document.getElementById('i-precio').value) || 0;
   const qr = document.getElementById('i-qr').checked;
+  const unidad = document.getElementById('i-unidad').value;
+  const tamano = document.getElementById('i-tamano').value;
+  const esInsumo = document.getElementById('i-es-insumo').checked;
+  const modoConsumo = document.getElementById('i-modo-consumo').value;
+  const capacidad = parseFloat(document.getElementById('i-capacidad').value) || 1;
+  const multiplicador = parseFloat(document.getElementById('i-multiplicador').value) || 1;
   if(!producto) return;
   if(state.inventario.some(p=>p.producto.toUpperCase()===producto)){
     mostrarAlerta(`Ya existe un producto llamado "${producto}" en tu inventario. Usá un nombre distinto, o editá el existente.`);
     return;
   }
-  const datosProducto = { producto, categoria, stock, reorden, precioVenta, qr };
+  const datosProducto = { producto, categoria, stock, reorden, precioVenta, qr, unidad, tamano, esInsumo, modoConsumo, capacidad, multiplicador };
   if(currentCadenaId){
     const encontrado = await buscarProductoEnHermanas(producto);
     if(encontrado){
@@ -2124,11 +2258,24 @@ function resolverCodigoProducto(codigoElegido){
   finalizarAgregarProducto(datosProducto, codigo);
 }
 function finalizarAgregarProducto(datosProducto, codigo){
-  const nuevo = { id:Date.now(), codigo, producto:datosProducto.producto, categoria:datosProducto.categoria, grupoNombre:null, stock:datosProducto.stock, reorden:datosProducto.reorden, precioVenta:datosProducto.precioVenta, qr:datosProducto.qr };
+  const nuevo = {
+    id:Date.now(), codigo, producto:datosProducto.producto, categoria:datosProducto.categoria, grupoNombre:null,
+    stock:datosProducto.stock, reorden:datosProducto.reorden, precioVenta:datosProducto.precioVenta, qr:datosProducto.qr,
+    unidad:datosProducto.unidad||'unidad', tamano:datosProducto.tamano||'chico',
+    esInsumo:datosProducto.esInsumo||false, modoConsumo:datosProducto.modoConsumo||'capacidad',
+    capacidad:datosProducto.capacidad||1, multiplicador:datosProducto.multiplicador||1
+  };
   state.inventario.unshift(nuevo);
   document.getElementById('i-producto').value=''; document.getElementById('i-categoria').value=''; document.getElementById('i-stock').value='';
   document.getElementById('i-reorden').value=''; document.getElementById('i-precio').value='';
   document.getElementById('i-qr').checked = false;
+  document.getElementById('i-unidad').value = 'unidad';
+  document.getElementById('i-tamano').value = 'chico';
+  document.getElementById('i-es-insumo').checked = false;
+  document.getElementById('i-modo-consumo').value = 'capacidad';
+  document.getElementById('i-capacidad').value = '';
+  document.getElementById('i-multiplicador').value = '';
+  onEsInsumoChange(); onModoConsumoChange();
   guardar(); render();
   if(nuevo.stock > 0) abrirPreguntaCompraInicial(nuevo);
 }
@@ -2153,11 +2300,20 @@ function confirmarCompraInicial(codigo, cantidad){
 function editarProducto(id){
   const p = state.inventario.find(x=>x.id===id);
   if(!p) return;
+  const opUnidad = u => `<option value="${u}" ${p.unidad===u?'selected':''}>${{unidad:'Unidades',kg:'Kilogramos',g:'Gramos',lb:'Libras',oz:'Onzas',l:'Litros',ml:'Mililitros'}[u]}</option>`;
   openModal(`
     <h3>Editar producto — ${p.codigo}</h3>
     <div class="field-group"><label>Nombre</label><input type="text" id="ep-nombre" value="${p.producto}" style="text-transform:uppercase;"></div>
     <div class="field-group"><label>Categoría</label><input list="categorias-inv" type="text" id="ep-categoria" value="${p.categoria||''}"></div>
     <div class="field-group"><label>Stock</label><input type="number" id="ep-stock" value="${p.stock}" min="0"></div>
+    <div class="field-group"><label>Unidad de medida</label><select id="ep-unidad">${['unidad','kg','g','lb','oz','l','ml'].map(opUnidad).join('')}</select></div>
+    <div class="field-group"><label>Tamaño (para sugerencia de empaque)</label>
+      <select id="ep-tamano">
+        <option value="chico" ${p.tamano==='chico'?'selected':''}>Chico</option>
+        <option value="mediano" ${p.tamano==='mediano'?'selected':''}>Mediano</option>
+        <option value="grande" ${p.tamano==='grande'?'selected':''}>Grande</option>
+      </select>
+    </div>
     <div class="field-group"><label>Punto de reorden</label><input type="number" id="ep-reorden" value="${p.reorden}" min="0"></div>
     <div class="field-group"><label>Precio de venta (con impuesto)</label><div class="row"><input type="number" id="ep-precio" value="${p.precioVenta||0}" step="0.01"><button class="secondary" type="button" onclick="abrirCalculadoraCostos('ep-precio')">${ICONO_CALC}</button></div>
       <select id="ep-usar-calculo" onchange="if(this.value) usarCalculoEnCampo(parseInt(this.value),'ep-precio')">
@@ -2165,11 +2321,34 @@ function editarProducto(id){
         ${state.calculosCosto.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
       </select>
     </div>
+    <div class="row"><label class="check-line"><input type="checkbox" id="ep-es-insumo" ${p.esInsumo?'checked':''} onchange="onEpEsInsumoChange()"> Es un insumo de servicio</label></div>
+    <div id="ep-insumo-wrap" style="display:${p.esInsumo?'block':'none'};">
+      <div class="row">
+        <select id="ep-modo-consumo" onchange="onEpModoConsumoChange()">
+          <option value="capacidad" ${p.modoConsumo==='capacidad'?'selected':''}>Se calcula por capacidad</option>
+          <option value="porUnidad" ${p.modoConsumo==='porUnidad'?'selected':''}>Se calcula 1 a 1 con lo vendido</option>
+        </select>
+      </div>
+      <div class="row" id="ep-campo-capacidad" style="display:${p.modoConsumo==='capacidad'?'flex':'none'};">
+        <input type="number" id="ep-capacidad" value="${p.capacidad||1}" placeholder="Caben cuántos productos chicos" min="1">
+      </div>
+      <div class="row" id="ep-campo-multiplicador" style="display:${p.modoConsumo==='porUnidad'?'flex':'none'};">
+        <input type="number" id="ep-multiplicador" value="${p.multiplicador||1}" placeholder="Cuántos por producto vendido" min="0" step="0.5">
+      </div>
+    </div>
     <div class="row">
       <button class="secondary" onclick="closeModal()">Cancelar</button>
       <button onclick="guardarEdicionProducto(${id})">Guardar cambios</button>
     </div>
   `);
+}
+function onEpEsInsumoChange(){
+  document.getElementById('ep-insumo-wrap').style.display = document.getElementById('ep-es-insumo').checked ? 'block' : 'none';
+}
+function onEpModoConsumoChange(){
+  const modo = document.getElementById('ep-modo-consumo').value;
+  document.getElementById('ep-campo-capacidad').style.display = modo==='capacidad' ? 'flex' : 'none';
+  document.getElementById('ep-campo-multiplicador').style.display = modo==='porUnidad' ? 'flex' : 'none';
 }
 function guardarEdicionProducto(id){
   const p = state.inventario.find(x=>x.id===id);
@@ -2185,6 +2364,12 @@ function guardarEdicionProducto(id){
     return;
   }
   p.producto = nombre; p.categoria = categoria; p.stock = stock; p.reorden = reorden; p.precioVenta = precioVenta;
+  p.unidad = document.getElementById('ep-unidad').value;
+  p.tamano = document.getElementById('ep-tamano').value;
+  p.esInsumo = document.getElementById('ep-es-insumo').checked;
+  p.modoConsumo = document.getElementById('ep-modo-consumo').value;
+  p.capacidad = parseFloat(document.getElementById('ep-capacidad').value) || 1;
+  p.multiplicador = parseFloat(document.getElementById('ep-multiplicador').value) || 1;
   guardar(); render(); closeModal();
 }
 function borrarProducto(id){
@@ -2448,6 +2633,24 @@ function confirmarCrearCombo(){
     closeModal();
     guardar(); render();
   }
+}
+function calcularRendimientoCombo(combo){
+  const fijos = combo.componentes.filter(c=>c.tipo!=='grupo');
+  const grupos = combo.componentes.filter(c=>c.tipo==='grupo');
+  if(!fijos.length && !grupos.length) return null;
+  let minimo = Infinity;
+  fijos.forEach(comp=>{
+    const item = state.inventario.find(p=>p.codigo===comp.codigo);
+    const disponible = item ? item.stock : 0;
+    const veces = comp.cantidad>0 ? Math.floor(disponible/comp.cantidad) : 0;
+    minimo = Math.min(minimo, veces);
+  });
+  grupos.forEach(comp=>{
+    const variantes = state.inventario.filter(p=>p.grupoNombre===comp.grupoNombre);
+    const mejorVariante = variantes.reduce((max,v)=>Math.max(max, comp.cantidad>0?Math.floor(v.stock/comp.cantidad):0), 0);
+    minimo = Math.min(minimo, mejorVariante);
+  });
+  return minimo===Infinity ? null : minimo;
 }
 function toggleComboActivo(id){
   const c = state.combos.find(x=>x.id===id);
@@ -2799,14 +3002,16 @@ function render(){
     const detalle = c.componentes.map(comp=>{
       if(comp.tipo==='grupo') return `${comp.cantidad}x (elegir variante de "${comp.grupoNombre}")`;
       const prod = state.inventario.find(p=>p.codigo===comp.codigo);
-      return `${comp.cantidad}x ${prod?prod.producto:comp.codigo}`;
+      return `${fmtCantidad(comp.cantidad, prod?prod.unidad:'unidad')} ${prod?prod.producto:comp.codigo}`;
     }).join(', ');
+    const rendimiento = calcularRendimientoCombo(c);
     return `<div class="card" style="margin-bottom:8px;padding:10px 12px;">
       <div class="row" style="justify-content:space-between;flex-wrap:nowrap;margin-bottom:4px;">
         <strong style="font-size:13px;">${c.nombre} <span class="code">${c.codigo}</span></strong>
         <span class="tag ${c.activo?'ok':'low'}" style="cursor:pointer;" onclick="toggleComboActivo(${c.id})">${c.activo?'Activo':'Pausado'}</span>
       </div>
-      <p class="hint" style="margin:0 0 6px;">${detalle} — ${fmt(c.precioVenta)}</p>
+      <p class="hint" style="margin:0 0 4px;">${detalle} — ${fmt(c.precioVenta)}</p>
+      <p class="hint" style="margin:0 0 6px;font-weight:700;color:${rendimiento===null?'var(--ink-faint)':(rendimiento<=3?'var(--rust)':'var(--moss)')};">${rendimiento===null ? 'Sin componentes fijos para calcular rendimiento' : `Alcanza para ${rendimiento} venta(s) con el stock actual`}</p>
       <div class="actions">${c.qr?`<button class="mini" onclick="verQR('${c.codigo}')">QR</button>`:''}<button class="mini" onclick="abrirCrearCombo(${c.id})">Editar</button><button class="danger" onclick="borrarCombo(${c.id})">Eliminar</button></div>
     </div>`;
   }).join('') : '<div class="empty">Todavía no creás combos.</div>';
@@ -2818,10 +3023,12 @@ function render(){
   const ift = (document.getElementById('if-texto').value||'').toLowerCase();
   const ifc = document.getElementById('if-categoria').value;
   const ifSoloVariantes = document.getElementById('if-solo-variantes').checked;
+  const ifSoloInsumos = document.getElementById('if-solo-insumos').checked;
   const inventarioFiltrado = state.inventario.filter(p=>
     (!ift || (p.producto+p.codigo+(p.grupoNombre||'')+(p.categoria||'')).toLowerCase().includes(ift)) &&
     (!ifc || p.categoria===ifc) &&
-    (!ifSoloVariantes || p.grupoNombre)
+    (!ifSoloVariantes || p.grupoNombre) &&
+    (!ifSoloInsumos || p.esInsumo)
   );
 
   const gruposVistos = new Set();
@@ -2834,7 +3041,7 @@ function render(){
       filaGrupo = `<tr style="background:var(--primary-soft);cursor:pointer;" onclick="toggleGrupoColapsado('${p.grupoNombre.replace(/'/g,"\\'")}')"><td colspan="4" style="font-weight:700;font-size:12px;">${colapsado?'▸':'▾'} ${p.grupoNombre} <span class="hint" style="margin:0;">(${cantidadEnGrupo} variantes)</span></td><td colspan="2" class="actions" onclick="event.stopPropagation();"><button class="mini" onclick="editarGrupoVariantes('${p.grupoNombre.replace(/'/g,"\\'")}')">Editar grupo</button><button class="danger" onclick="borrarGrupoVariantes('${p.grupoNombre.replace(/'/g,"\\'")}')">Eliminar grupo</button></td></tr>`;
     }
     if(p.grupoNombre && gruposColapsados.has(p.grupoNombre)) return filaGrupo;
-    return filaGrupo + `<tr><td><span class="code">${p.codigo}</span></td><td>${p.grupoNombre ? '↳ '+p.producto.replace(p.grupoNombre,'').trim() : p.producto}${p.categoria?` <span class="hint" style="margin:0;">· ${p.categoria}</span>`:''}</td><td class="num">${p.stock}</td><td class="num">${p.precioVenta?fmt(p.precioVenta):'—'}</td><td>${p.stock<=p.reorden ? '<span class="tag low">Reordenar</span>' : '<span class="tag ok">Ok</span>'}</td><td class="actions">${p.qr?`<button class="mini" onclick="verQR('${p.codigo}')">QR</button>`:''}<button class="mini" onclick="editarProducto(${p.id})">Editar</button><button class="danger" onclick="borrarProducto(${p.id})">Eliminar</button></td></tr>`;
+    return filaGrupo + `<tr><td><span class="code">${p.codigo}</span></td><td>${p.grupoNombre ? '↳ '+p.producto.replace(p.grupoNombre,'').trim() : p.producto}${p.categoria?` <span class="hint" style="margin:0;">· ${p.categoria}</span>`:''}${p.esInsumo?` <span class="tag edit">Insumo</span>`:''}</td><td class="num">${fmtCantidad(p.stock, p.unidad)}</td><td class="num">${p.precioVenta?fmt(p.precioVenta):'—'}</td><td>${p.stock<=p.reorden ? '<span class="tag low">Reordenar</span>' : '<span class="tag ok">Ok</span>'}</td><td class="actions">${p.qr?`<button class="mini" onclick="verQR('${p.codigo}')">QR</button>`:''}<button class="mini" onclick="editarProducto(${p.id})">Editar</button><button class="danger" onclick="borrarProducto(${p.id})">Eliminar</button></td></tr>`;
   }).join('');
   document.getElementById('lista-inventario').innerHTML = inventarioFiltrado.length ? `<div class="table-scroll"><table><thead><tr><th>Código</th><th>Producto</th><th class="num">Stock</th><th class="num">Precio venta</th><th>Estado</th><th></th></tr></thead><tbody>${filasInventario}</tbody></table></div>` : (state.inventario.length ? '<div class="empty">No hay productos con ese filtro.</div>' : '<div class="empty">Todavía no agregás productos.</div>');
 }
@@ -2842,6 +3049,7 @@ function limpiarFiltroInventario(){
   document.getElementById('if-texto').value = '';
   document.getElementById('if-categoria').value = '';
   document.getElementById('if-solo-variantes').checked = false;
+  document.getElementById('if-solo-insumos').checked = false;
   render();
 }
 
