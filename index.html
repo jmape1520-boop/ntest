@@ -9,7 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 <script type="module">
   import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
-  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, sendPasswordResetEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
   import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -30,6 +30,13 @@
     iniciarSesion: (email, pass) => signInWithEmailAndPassword(auth, email, pass),
     iniciarSesionGoogle: () => signInWithPopup(auth, googleProvider),
     cerrarSesion: () => signOut(auth),
+    cambiarPassword: async (passActual, passNueva) => {
+      const user = auth.currentUser;
+      if(!user || !user.email) throw new Error('sin-sesion');
+      const cred = EmailAuthProvider.credential(user.email, passActual);
+      await reauthenticateWithCredential(user, cred);
+      await updatePassword(user, passNueva);
+    },
     onAuthChange: (cb) => onAuthStateChanged(auth, cb),
     recuperarPassword: (email) => sendPasswordResetEmail(auth, email),
 
@@ -280,6 +287,7 @@
     </div>
     <div class="row" style="flex:0 0 auto;gap:6px;">
       <button class="btn-excel" id="btn-excel-header" onclick="exportarExcel()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Excel</button>
+      <button class="mini" onclick="abrirCambiarPassword()">Contraseña</button>
       <button class="secondary" onclick="hacerLogout()">Salir</button>
     </div>
   </header>
@@ -1003,6 +1011,47 @@ function hacerLogout(){
   window.fb.cerrarSesion();
 }
 
+function abrirCambiarPassword(){
+  openModal(`
+    <h3>Cambiar contraseña</h3>
+    <div class="field-group">
+      <label>Contraseña actual</label>
+      <div class="pass-wrap"><input type="password" id="cp-actual" placeholder="Contraseña actual"><button type="button" class="pass-toggle" onclick="togglePassView('cp-actual', this)">${ICONO_OJO}</button></div>
+    </div>
+    <div class="field-group">
+      <label>Contraseña nueva</label>
+      <div class="pass-wrap"><input type="password" id="cp-nueva" placeholder="Contraseña nueva"><button type="button" class="pass-toggle" onclick="togglePassView('cp-nueva', this)">${ICONO_OJO}</button></div>
+      <p class="hint" style="margin:0;">Mínimo 8 caracteres, con una mayúscula y un número.</p>
+    </div>
+    <div class="field-group">
+      <label>Repetí la contraseña nueva</label>
+      <input type="password" id="cp-repetir" placeholder="Repetí la contraseña nueva">
+    </div>
+    <p class="hint" id="cp-error" style="color:var(--rust);"></p>
+    <div class="row">
+      <button class="secondary" onclick="closeModal()">Cancelar</button>
+      <button onclick="confirmarCambiarPassword()">Guardar</button>
+    </div>
+  `);
+}
+async function confirmarCambiarPassword(){
+  const actual = document.getElementById('cp-actual').value;
+  const nueva = document.getElementById('cp-nueva').value;
+  const repetir = document.getElementById('cp-repetir').value;
+  const err = document.getElementById('cp-error');
+  err.textContent = '';
+  if(!actual){ err.textContent = 'Metele tu contraseña actual.'; return; }
+  if(!passwordValida(nueva)){ err.textContent = 'La contraseña nueva necesita mínimo 8 caracteres, una mayúscula y un número.'; return; }
+  if(nueva !== repetir){ err.textContent = 'Las dos contraseñas nuevas no coinciden.'; return; }
+  try{
+    await window.fb.cambiarPassword(actual, nueva);
+    closeModal();
+    mostrarAlerta('Listo — tu contraseña se cambió correctamente.');
+  }catch(e){
+    err.textContent = mensajeErrorAuth(e);
+  }
+}
+
 function aplicarRestriccionesRol(){
   const esVendedor = currentRol === 'vendedor';
   const esContador = currentRol === 'contador';
@@ -1194,19 +1243,38 @@ async function crearVendedorUI(){
   }catch(e){ err.textContent = mensajeErrorAuth(e); }
 }
 async function refrescarListaVendedores(){
-  const equipo = await window.fb.listarVendedores(currentTiendaId);
+  const equipo = (await window.fb.listarVendedores(currentTiendaId)).filter(v=>v.rol!=='eliminado');
   const el = document.getElementById('lista-vendedores');
   if(!el) return;
   el.innerHTML = equipo.length ? equipo.map(v=>
-    `<div class="row" style="justify-content:space-between;flex-wrap:nowrap;background:var(--paper);padding:8px 10px;border-radius:8px;">
-      <span style="font-size:13px;">${v.nombre} <span class="hint" style="margin:0;">(${v.email}) — ${v.rol==='contador'?'Contador':'Vendedor'}</span></span>
-      <span class="tag ${v.activo?'ok':'low'}" style="cursor:pointer;" onclick="toggleVendedorActivo('${v.uid}', ${!v.activo})">${v.activo?'Activo':'Desactivado'}</span>
+    `<div class="card" style="margin-bottom:8px;padding:10px 12px;">
+      <div class="row" style="justify-content:space-between;flex-wrap:nowrap;margin-bottom:6px;">
+        <span style="font-size:13px;">${v.nombre} <span class="hint" style="margin:0;">(${v.email})</span></span>
+        <span class="tag ${v.activo?'ok':'low'}" style="cursor:pointer;" onclick="toggleVendedorActivo('${v.uid}', ${!v.activo})">${v.activo?'Activo':'Desactivado'}</span>
+      </div>
+      <div class="row">
+        <select onchange="cambiarRolMiembro('${v.uid}', this.value)">
+          <option value="vendedor" ${v.rol==='vendedor'?'selected':''}>Vendedor</option>
+          <option value="contador" ${v.rol==='contador'?'selected':''}>Contador</option>
+        </select>
+        <button class="danger" onclick="eliminarMiembroEquipo('${v.uid}', '${v.nombre.replace(/'/g,"\\'")}')">Eliminar</button>
+      </div>
     </div>`
   ).join('') : '<p class="empty">Todavía no creás vendedores ni contadores.</p>';
 }
 async function toggleVendedorActivo(uid, nuevoEstado){
   await window.fb.guardarUsuario(uid, { activo: nuevoEstado });
   await refrescarListaVendedores();
+}
+async function cambiarRolMiembro(uid, nuevoRol){
+  await window.fb.guardarUsuario(uid, { rol: nuevoRol });
+  await refrescarListaVendedores();
+}
+function eliminarMiembroEquipo(uid, nombre){
+  confirmarAccion(`¿Eliminar a ${nombre} de tu equipo? Ya no va a poder iniciar sesión.`, async ()=>{
+    await window.fb.guardarUsuario(uid, { activo: false, rol: 'eliminado' });
+    await refrescarListaVendedores();
+  });
 }
 
 function guardarCodigoVendedor(){
