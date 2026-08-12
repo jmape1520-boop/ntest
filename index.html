@@ -1,0 +1,2856 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>MAQUI INVENTORY</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script type="module">
+  import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+  import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyADVuxeMej3mYo3VutAwTeb5oK1uIrLYpo",
+    authDomain: "maquis-78101.firebaseapp.com",
+    projectId: "maquis-78101",
+    storageBucket: "maquis-78101.firebasestorage.app",
+    messagingSenderId: "722208873307",
+    appId: "1:722208873307:web:933dd9662c95c4e486d87e"
+  };
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const googleProvider = new GoogleAuthProvider();
+
+  window.fb = {
+    registrar: (email, pass) => createUserWithEmailAndPassword(auth, email, pass),
+    iniciarSesion: (email, pass) => signInWithEmailAndPassword(auth, email, pass),
+    iniciarSesionGoogle: () => signInWithPopup(auth, googleProvider),
+    cerrarSesion: () => signOut(auth),
+    onAuthChange: (cb) => onAuthStateChanged(auth, cb),
+    recuperarPassword: (email) => sendPasswordResetEmail(auth, email),
+
+    leerUsuario: async (uid) => {
+      const snap = await getDoc(doc(db, 'usuarios', uid));
+      return snap.exists() ? snap.data() : null;
+    },
+    guardarUsuario: (uid, datos) => setDoc(doc(db, 'usuarios', uid), datos, { merge: true }),
+    listarVendedores: async (tiendaId) => {
+      const q = query(collection(db, 'usuarios'), where('tiendaId', '==', tiendaId));
+      const snap = await getDocs(q);
+      const out = [];
+      snap.forEach(d => { const datos = d.data(); if(datos.rol !== 'propietario') out.push({ uid: d.id, ...datos }); });
+      return out;
+    },
+
+    crearTienda: async (tiendaId, datos) => setDoc(doc(db, 'tiendas', tiendaId), datos),
+    actualizarTienda: async (tiendaId, datos) => setDoc(doc(db, 'tiendas', tiendaId), datos, { merge: true }),
+    crearCadena: async (cadenaId, datos) => setDoc(doc(db, 'cadenas', cadenaId), datos),
+    actualizarCadena: async (cadenaId, datos) => setDoc(doc(db, 'cadenas', cadenaId), datos, { merge: true }),
+    leerCadena: async (cadenaId) => {
+      const snap = await getDoc(doc(db, 'cadenas', cadenaId));
+      return snap.exists() ? snap.data() : null;
+    },
+    leerTienda: async (tiendaId) => {
+      const snap = await getDoc(doc(db, 'tiendas', tiendaId));
+      return snap.exists() ? snap.data() : null;
+    },
+    eliminarTienda: async (tiendaId) => {
+      await deleteDoc(doc(db, 'tiendas', tiendaId, 'negocio', 'main'));
+      await deleteDoc(doc(db, 'tiendas', tiendaId));
+    },
+
+    guardarDatosTienda: (tiendaId, dataObj) => setDoc(doc(db, 'tiendas', tiendaId, 'negocio', 'main'), { json: JSON.stringify(dataObj) }),
+    leerDatosTienda: async (tiendaId) => {
+      const snap = await getDoc(doc(db, 'tiendas', tiendaId, 'negocio', 'main'));
+      return snap.exists() ? snap.data().json : null;
+    },
+
+    // Crea una cuenta de vendedor SIN cerrar la sesión del propietario (usa una instancia temporal de Firebase)
+    crearVendedor: async (email, pass, datosUsuario) => {
+      const tempApp = initializeApp(firebaseConfig, 'temp-' + Date.now());
+      const tempAuth = getAuth(tempApp);
+      try{
+        const cred = await createUserWithEmailAndPassword(tempAuth, email, pass);
+        const newUid = cred.user.uid;
+        await setDoc(doc(db, 'usuarios', newUid), datosUsuario);
+        await signOut(tempAuth);
+        await deleteApp(tempApp);
+        return newUid;
+      }catch(e){
+        await deleteApp(tempApp);
+        throw e;
+      }
+    }
+  };
+  window.dispatchEvent(new Event('fbListo'));
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1c2430; --ink-soft:#4a5568; --ink-faint:#8a94a3;
+    --paper:#fffdf5; --card:#ffffff; --line:#e8e4cf;
+    --cream:#F9F8DC; --cream-deep:#f0eec4;
+    --primary:#0561A9; --primary-soft:rgba(5,97,169,0.12); --primary-icon:rgba(5,97,169,0.35); --primary-deep:#044880;
+    --moss:#0561A9; --moss-soft:rgba(5,97,169,0.12); --moss-deep:#044880;
+    --rust:#c1443a; --rust-soft:#fbe6e4;
+    --gold:#b8862e; --gold-soft:#f6ecd6;
+    --radius:14px;
+    --sans: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --mono: 'SF Mono', 'Roboto Mono', ui-monospace, monospace;
+    --elev1: 0 1px 3px rgba(5,30,60,.10), 0 1px 2px rgba(5,30,60,.14);
+    --elev2: 0 3px 8px rgba(5,30,60,.14), 0 1px 3px rgba(5,30,60,.10);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --ink:#ece7db; --ink-soft:#b9b2a0; --ink-faint:#7d7666;
+      --paper:#12161c; --card:#1a2029; --line:#283040;
+      --cream:#1a2029; --cream-deep:#232b38;
+      --primary:#5aa6e0; --primary-soft:rgba(90,166,224,0.14); --primary-icon:rgba(90,166,224,0.4); --primary-deep:#3d84ba;
+      --moss:#5aa6e0; --moss-soft:rgba(90,166,224,0.14); --moss-deep:#3d84ba;
+      --rust:#e0796d; --rust-soft:#33201a;
+      --gold:#dcb15c; --gold-soft:#332a15;
+    }
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{overflow-x:hidden;}
+  body{margin:0;font-family:var(--sans);background:var(--paper);color:var(--ink);}
+  .wrap{max-width:980px;margin:0 auto;padding:20px 16px 60px;}
+  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;background:var(--cream);border-radius:var(--radius);padding:16px 18px;gap:10px;flex-wrap:wrap;box-shadow:var(--elev1);}
+  .brand{display:flex;flex-direction:column;line-height:1;}
+  .brand .b1{font-size:24px;font-weight:800;color:var(--primary);letter-spacing:0.01em;}
+  .brand .b2{font-size:11px;font-weight:700;color:var(--primary);letter-spacing:0.28em;margin-top:3px;}
+  .brand-badges{display:flex;gap:6px;align-items:center;margin-top:6px;}
+  header p{margin:2px 0 0;color:var(--ink-soft);font-size:12px;}
+  .btn-excel{background:var(--gold);white-space:nowrap;flex:0 0 auto;}
+  .tabs{display:flex;gap:4px;margin-bottom:0;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px;flex:1;min-width:0;}
+  .tabs-row{display:flex;align-items:center;gap:6px;margin-bottom:18px;}
+  .menu-toggle{display:flex;align-items:center;gap:5px;padding:9px 14px;border:none;border-radius:999px;background:var(--card);color:var(--ink-soft);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);box-shadow:var(--elev1);flex:0 0 auto;white-space:nowrap;}
+  .menu-toggle svg{width:15px;height:15px;stroke:var(--primary-icon);}
+  .menu-toggle.open{background:var(--primary);color:#fff;}
+  .menu-toggle.open svg{stroke:#fff;}
+  .menu-mas{display:none;background:var(--card);border-radius:var(--radius);box-shadow:var(--elev2);padding:14px;margin-bottom:14px;}
+  .menu-mas.open{display:block;}
+  .menu-mas-group{margin-bottom:12px;}
+  .menu-mas-group:last-child{margin-bottom:0;}
+  .menu-mas-group.vacio{display:none;}
+  .menu-mas-title{font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-faint);font-weight:700;margin-bottom:6px;}
+  .menu-mas .tab{display:inline-flex;margin:0 6px 6px 0;}
+  .tabs::-webkit-scrollbar{display:none;}
+  .tab{display:flex;align-items:center;gap:6px;padding:9px 14px;border:none;border-radius:999px;background:var(--card);color:var(--ink-soft);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:600;flex:0 0 auto;white-space:nowrap;box-shadow:var(--elev1);transition:background .15s,color .15s;}
+  .tab svg{width:16px;height:16px;stroke:var(--primary-icon);flex:0 0 auto;}
+  .tab.active{background:var(--primary);color:#fff;}
+  .tab.active svg{stroke:#fff;}
+  .panel{display:none;}
+  .panel.active{display:block;}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px;}
+  .metric{background:var(--card);border:none;border-radius:var(--radius);padding:12px 14px;box-shadow:var(--elev1);}
+  .metric .lbl{font-size:10px;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-faint);margin-bottom:4px;}
+  .metric .val{font-family:var(--mono);font-size:18px;font-weight:700;word-break:break-word;}
+  .metric.pos .val{color:var(--moss);}
+  .metric.neg .val{color:var(--rust);}
+  .card{background:var(--card);border:none;border-radius:var(--radius);padding:16px;margin-bottom:14px;box-shadow:var(--elev1);}
+  .card h3{margin:0 0 10px;font-size:14px;font-weight:800;}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center;}
+  input,select{flex:1;min-width:0;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);font-size:14px;font-family:var(--sans);min-height:44px;transition:border-color .15s;}
+  input:focus,select:focus{outline:none;border-color:var(--primary);}
+  input[type=checkbox]{flex:0 0 auto;width:20px;height:20px;min-height:20px;padding:0;accent-color:var(--primary);}
+  input[type=date]{min-width:130px;}
+  button{padding:11px 18px;border:none;border-radius:10px;background:var(--primary);color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--sans);min-height:44px;box-shadow:var(--elev1);transition:transform .1s,box-shadow .1s;}
+  button:active{transform:scale(0.97);box-shadow:none;}
+  button.secondary{background:transparent;border:1.5px solid var(--primary);color:var(--primary);box-shadow:none;}
+  button.danger{background:transparent;border:1.5px solid var(--rust);color:var(--rust);padding:7px 10px;font-size:12px;min-height:36px;box-shadow:none;}
+  button.mini{background:transparent;border:1.5px solid var(--line);color:var(--ink-soft);padding:7px 10px;font-size:12px;min-height:36px;box-shadow:none;}
+  button.scan{background:var(--gold);flex:0 0 auto;}
+  .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  table{width:100%;border-collapse:collapse;font-size:13px;min-width:520px;}
+  th{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);color:var(--ink-faint);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.03em;white-space:nowrap;}
+  td{padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  .num{font-family:var(--mono);text-align:right;white-space:nowrap;}
+  .center{text-align:center;}
+  .code{font-family:var(--mono);font-size:12px;background:var(--gold-soft);color:var(--gold);padding:2px 6px;border-radius:4px;white-space:nowrap;}
+  .tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;}
+  .tag.low{background:var(--rust-soft);color:var(--rust);}
+  .tag.ok{background:var(--moss-soft);color:var(--moss-deep);}
+  .tag.edit{background:var(--gold-soft);color:var(--gold);cursor:pointer;}
+  .empty{color:var(--ink-faint);font-size:13px;padding:14px 0;text-align:center;}
+  .hint{color:var(--ink-faint);font-size:12px;margin-top:-4px;margin-bottom:12px;}
+  .field-group{display:flex;flex-direction:column;gap:8px;margin-bottom:20px;}
+  .field-group label{margin-bottom:2px;}
+  .field-group .hint{margin-top:2px;margin-bottom:0;}
+  .accordion-body .card h3,.accordion-body h3{margin-top:0;}
+  .field-group label{font-size:12px;color:var(--ink-soft);font-weight:700;}
+  .check-line{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-soft);padding:2px 0;}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;padding:10px 12px;background:var(--primary-soft);border-radius:var(--radius);}
+  .filters input,.filters select{background:var(--card);}
+  .filters span{font-size:11px;color:var(--ink-faint);align-self:center;}
+  .actions{display:flex;gap:4px;flex-wrap:wrap;}
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(10,20,35,0.55);z-index:50;align-items:center;justify-content:center;padding:16px;}
+  .modal-overlay.show{display:flex;}
+  .modal-box{background:var(--card);border-radius:var(--radius);padding:20px;max-width:400px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:var(--elev2);}
+  .modal-box h3{margin-top:0;}
+  .modal-box .row{justify-content:flex-end;margin-top:14px;}
+  #scanner-video{width:100%;border-radius:8px;background:#000;display:block;}
+  .accordion{border:none;border-radius:var(--radius);margin-bottom:10px;overflow:hidden;box-shadow:var(--elev1);}
+  .accordion-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;cursor:pointer;background:var(--card);font-size:14px;font-weight:800;}
+  .accordion-head .chev{transition:transform 0.2s;color:var(--ink-faint);font-size:12px;}
+  .accordion.open .accordion-head .chev{transform:rotate(180deg);}
+  .accordion-body{display:none;padding:14px 16px 16px;}
+  .accordion.open .accordion-body{display:block;}
+  .ticket{font-family:var(--mono);font-size:13px;line-height:1.6;background:var(--paper);border:1px dashed var(--line);border-radius:8px;padding:16px;}
+  .ticket .tline{display:flex;justify-content:space-between;}
+  .ticket hr{border:none;border-top:1px dashed var(--line);margin:8px 0;}
+  .pass-wrap{flex:1;min-width:0;display:flex;align-items:stretch;gap:0;border:1.5px solid var(--line);border-radius:10px;overflow:hidden;background:var(--paper);}
+  .pass-wrap:focus-within{border-color:var(--primary);}
+  .pass-wrap input{flex:1;border:none;background:transparent;border-radius:0;min-width:0;}
+  .pass-wrap input:focus{outline:none;}
+  .pass-toggle{position:static;background:var(--primary-soft);box-shadow:none;color:var(--primary);padding:0;min-height:44px;width:44px;flex:0 0 44px;display:flex;align-items:center;justify-content:center;border-radius:0;order:-1;}
+  .pass-toggle:active{transform:scale(0.92);}
+  .pass-toggle svg{width:20px;height:20px;}
+  .btn-google{background:#fff;color:#3c4043;border:1.5px solid var(--line);}
+  .role-badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:800;background:var(--primary-soft);color:var(--primary);}
+  @media print{
+    body *{visibility:hidden;}
+    #print-area, #print-area *{visibility:visible;}
+    #print-area{position:absolute;top:0;left:0;width:100%;}
+  }
+  @media (max-width: 640px){
+    .wrap{padding:14px 10px 70px;}
+    header{flex-direction:row;}
+    .brand .b1{font-size:20px;}
+    .row{flex-direction:column;align-items:stretch;}
+    .row input,.row select,.row button{width:100%;}
+    .row input[type=checkbox]{width:20px;align-self:flex-start;}
+    .check-line{align-self:flex-start;}
+    .filters{flex-direction:column;align-items:stretch;}
+    .card{padding:12px;}
+    .cards{grid-template-columns:repeat(2,1fr);}
+  }
+</style>
+</head>
+<body>
+<div class="wrap" id="auth-screen" style="max-width:400px;padding-top:60px;">
+  <div class="card" style="text-align:center;">
+    <div class="brand" style="align-items:center;margin-bottom:4px;">
+      <span class="b1">MAQUI</span>
+      <span class="b2">INVENTORY</span>
+    </div>
+    <p class="hint" style="margin:10px 0 18px;">Iniciá sesión o creá tu cuenta</p>
+    <div class="row"><input type="email" id="auth-email" placeholder="Correo electrónico"></div>
+    <div class="row">
+      <div class="pass-wrap">
+        <input type="password" id="auth-pass" placeholder="Contraseña">
+        <button type="button" class="pass-toggle" onclick="togglePassView('auth-pass', this)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        </button>
+      </div>
+    </div>
+    <p class="hint" style="margin-top:-6px;">Mínimo 8 caracteres, con una mayúscula y un número.</p>
+    <p class="hint" id="auth-error" style="color:var(--rust);"></p>
+    <div class="row" style="flex-direction:column;">
+      <button onclick="hacerLogin()">Iniciar sesión</button>
+      <button class="secondary" onclick="abrirFormularioRegistro()">Crear cuenta nueva</button>
+      <button class="mini" style="align-self:center;" onclick="hacerRecuperarPassword()">¿Olvidaste tu contraseña?</button>
+      <button class="btn-google" onclick="hacerLoginGoogle()">
+        <span style="display:inline-flex;align-items:center;gap:8px;justify-content:center;">
+          <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.4 29.3 35 24 35c-6.1 0-11-4.9-11-11s4.9-11 11-11c2.8 0 5.3 1 7.3 2.7l6-6C33.5 6.5 29 4.5 24 4.5 13.2 4.5 4.5 13.2 4.5 24S13.2 43.5 24 43.5 43.5 34.8 43.5 24c0-1.2-.1-2.4-.3-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 19 13 24 13c2.8 0 5.3 1 7.3 2.7l6-6C33.5 6.5 29 4.5 24 4.5c-7.7 0-14.3 4.4-17.7 10.2z"/><path fill="#4CAF50" d="M24 43.5c5.2 0 9.9-2 13.4-5.2l-6.2-5.2c-2 1.4-4.5 2.2-7.2 2.2-5.3 0-9.7-3.6-11.3-8.4l-6.5 5C9.6 39 16.2 43.5 24 43.5z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.6l6.2 5.2C40.9 36 43.5 30.5 43.5 24c0-1.2-.1-2.4-.3-3.5z"/></svg>
+          Continuar con Google
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="wrap" id="app-screen" style="display:none;">
+  <header>
+    <div>
+      <div class="brand">
+        <span class="b1">MAQUI</span>
+        <span class="b2">INVENTORY</span>
+      </div>
+      <div class="brand-badges">
+        <span class="role-badge" id="badge-rol">—</span>
+        <span class="hint" id="badge-tienda" style="margin:0;">—</span>
+      </div>
+    </div>
+    <div class="row" style="flex:0 0 auto;gap:6px;">
+      <button class="btn-excel" id="btn-excel-header" onclick="exportarExcel()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Excel</button>
+      <button class="secondary" onclick="hacerLogout()">Salir</button>
+    </div>
+  </header>
+
+  <div class="tabs-row">
+    <div class="tabs" id="tabs-bar">
+      <div class="tab active" data-tab="resumen"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"></polyline><polyline points="14 7 21 7 21 14"></polyline></svg>Resumen</div>
+      <div class="tab" data-tab="ventas"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83 3.83 11l9.58 9.59a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.83Z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg>Ventas</div>
+      <div class="tab" data-tab="inventario"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6v4H9z"></path><path d="M9 4H5a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-4"></path><polyline points="9 13 11 15 15 11"></polyline></svg>Inventario</div>
+    </div>
+    <button class="menu-toggle" id="menu-toggle-btn" onclick="toggleMenuMas()" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
+      Más
+    </button>
+  </div>
+  <div class="menu-mas" id="menu-mas">
+    <div class="menu-mas-group" data-grupo="inventario">
+      <div class="menu-mas-title">Inventario</div>
+      <div class="tab" data-tab="kardex"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>Kardex</div>
+      <div class="tab" data-tab="costos"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="8" y1="10" x2="10" y2="10"></line><line x1="14" y1="10" x2="16" y2="10"></line><line x1="8" y1="14" x2="10" y2="14"></line><line x1="14" y1="14" x2="16" y2="14"></line><line x1="8" y1="18" x2="10" y2="18"></line><line x1="14" y1="18" x2="16" y2="18"></line></svg>Costos</div>
+    </div>
+    <div class="menu-mas-group" data-grupo="finanzas">
+      <div class="menu-mas-title">Finanzas</div>
+      <div class="tab" data-tab="compras"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"></path><path d="M3 9h18v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z"></path><path d="M9 13h6"></path></svg>Compras</div>
+      <div class="tab" data-tab="gastos"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"></path><path d="M12 9v6"></path><path d="M9.5 11.5c0-1 1-1.5 2.5-1.5s2.5.5 2.5 1.5-1 1.5-2.5 1.5-2.5.5-2.5 1.5 1 1.5 2.5 1.5 2.5-.5 2.5-1.5"></path></svg>Gastos</div>
+      <div class="tab" data-tab="promos"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83 3.83 11l9.58 9.59a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.83Z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg>Promos</div>
+      <div class="tab" data-tab="contabilidad"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>Contabilidad</div>
+    </div>
+    <div class="menu-mas-group" data-grupo="sistema">
+      <div class="menu-mas-title">Sistema</div>
+      <div class="tab" data-tab="config"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"></path></svg>Configuración</div>
+    </div>
+  </div>
+
+  <div class="panel active" id="panel-resumen">
+    <div class="cards" id="metrics"></div>
+    <div class="card">
+      <h3>Cuentas por cobrar</h3>
+      <p class="hint">Ventas fiadas — les vendiste a crédito y todavía te deben.</p>
+      <div id="lista-cobrar"></div>
+    </div>
+    <div class="card">
+      <h3>Movimientos recientes</h3>
+      <div id="recientes"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-ventas">
+    <div class="card" id="ventas-registrar-card">
+      <h3>Registrar venta</h3>
+      <p class="hint">El precio unitario ya incluye el impuesto. El sistema calcula por separado cuánto es base y cuánto es impuesto.</p>
+      <div class="row">
+        <input list="codigos-inv" type="text" id="v-codigo" placeholder="Código" oninput="autollenarVenta()">
+        <datalist id="codigos-inv"></datalist>
+        <button class="scan" onclick="abrirScanner()" type="button"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px;"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>Escanear</button>
+      </div>
+      <div class="row">
+        <input list="nombres-inv" type="text" id="v-producto" placeholder="O escribí el nombre del producto" oninput="autollenarVentaPorNombre()">
+        <datalist id="nombres-inv"></datalist>
+      </div>
+      <div class="row">
+        <input type="number" id="v-cantidad" placeholder="Cantidad (ej. 1)" min="1" oninput="actualizarPromoPreview()">
+        <input type="number" id="v-precio" placeholder="Precio unitario (con impuesto)" step="0.01" oninput="actualizarPromoPreview()">
+      </div>
+      <p class="hint" id="v-promo-preview"></p>
+      <div class="row">
+        <button class="secondary" onclick="agregarItemCarrito()" type="button"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>Agregar ítem</button>
+      </div>
+      <div id="v-carrito"></div>
+      <div class="row" id="v-codigo-vendedor-wrap" style="display:none;">
+        <input type="text" id="v-codigo-vendedor" placeholder="Código de vendedor (opcional)" style="text-transform:uppercase;">
+      </div>
+      <div class="row">
+        <input type="text" id="v-cliente" placeholder="Cliente (opcional)">
+        <select id="v-metodo-pago">
+          <option value="efectivo">Efectivo</option>
+          <option value="tarjeta">Tarjeta</option>
+          <option value="transferencia">Transferencia</option>
+          <option value="pagare">Pagaré</option>
+          <option value="fiado">Fiado (a crédito)</option>
+        </select>
+      </div>
+      <div class="row">
+        <label class="check-line"><input type="checkbox" id="v-requiere-envio" onchange="toggleEnvioForm()"> Este pedido se debe enviar</label>
+      </div>
+      <div id="v-envio-wrap" style="display:none;">
+        <div class="row">
+          <input type="text" id="v-envio-direccion" placeholder="Dirección de envío">
+          <input type="text" id="v-envio-telefono" placeholder="Número de contacto">
+        </div>
+        <div class="row">
+          <input type="text" id="v-envio-transportista" placeholder="Transportista / método (opcional)">
+          <input type="text" id="v-envio-notas" placeholder="Notas del envío (opcional)">
+        </div>
+      </div>
+      <div class="row">
+        <button onclick="finalizarVenta()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px;"><polyline points="20 6 9 17 4 12"></polyline></svg>Registrar venta</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Historial de ventas</h3>
+      <div class="filters" id="vf-bar" style="display:none;">
+        <span>Filtrar</span>
+        <input type="date" id="vf-desde">
+        <input type="date" id="vf-hasta">
+        <input type="text" id="vf-texto" placeholder="Código, producto o cliente">
+        <button class="mini" onclick="render()">Aplicar</button>
+        <button class="mini" onclick="limpiarFiltro('v')">Limpiar</button>
+      </div>
+      <div id="lista-ventas"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-kardex">
+    <div class="card">
+      <h3>Kardex de producto</h3>
+      <p class="hint">Elegí un producto para ver su historial de movimientos y, si tu tienda pertenece a una cadena, el stock en tus sucursales hermanas.</p>
+      <div class="row">
+        <input list="nombres-kardex" type="text" id="kx-producto" placeholder="Buscá un producto por nombre" oninput="cargarKardex()">
+        <datalist id="nombres-kardex"></datalist>
+      </div>
+    </div>
+    <div class="card" id="kx-card-sucursales" style="display:none;">
+      <h3>Stock en tus sucursales</h3>
+      <div id="kx-sucursales"></div>
+    </div>
+    <div class="card">
+      <h3>Movimientos</h3>
+      <div id="kx-movimientos"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-compras">
+    <div class="card">
+      <h3>Registrar compra (abastece inventario)</h3>
+      <p class="hint">Solo para artículos que ya existen en tu inventario — la cantidad comprada se suma automáticamente al stock.</p>
+      <div class="row">
+        <input list="codigos-inv" type="text" id="c-codigo" placeholder="Código del producto" oninput="autollenarCompra()">
+        <input list="nombres-inv" type="text" id="c-producto" placeholder="O escribí el nombre" oninput="autollenarCompraPorNombre()">
+      </div>
+      <div class="row">
+        <input type="number" id="c-cantidad" placeholder="Cantidad" min="1" value="1">
+        <input type="number" id="c-costo" placeholder="Costo unitario" step="0.01">
+      </div>
+      <div class="row">
+        <input type="text" id="c-proveedor" placeholder="Proveedor (opcional)">
+        <button onclick="agregarCompra()">Registrar compra</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Historial de compras</h3>
+      <div class="filters" id="cf-bar" style="display:none;">
+        <span>Filtrar</span>
+        <input type="date" id="cf-desde">
+        <input type="date" id="cf-hasta">
+        <input type="text" id="cf-texto" placeholder="Código, producto o proveedor">
+        <button class="mini" onclick="render()">Aplicar</button>
+        <button class="mini" onclick="limpiarFiltro('c')">Limpiar</button>
+      </div>
+      <div id="lista-compras"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-gastos">
+    <div class="card">
+      <h3>Registrar gasto</h3>
+      <p class="hint">Para cosas que no vas a revender — limpieza, papelería, transporte propio, etc. No afectan tu inventario.</p>
+      <div class="row">
+        <input type="text" id="g-concepto" placeholder="Concepto">
+        <select id="g-categoria">
+          <option>Limpieza</option>
+          <option>Papelería</option>
+          <option>Transporte</option>
+          <option>Servicios</option>
+          <option>Publicidad</option>
+          <option>Otro</option>
+        </select>
+      </div>
+      <div class="row">
+        <input type="number" id="g-monto" placeholder="Monto" step="0.01">
+        <button onclick="agregarGasto()">Registrar gasto</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Historial de gastos</h3>
+      <div class="filters" id="gf-bar" style="display:none;">
+        <span>Filtrar</span>
+        <input type="date" id="gf-desde">
+        <input type="date" id="gf-hasta">
+        <select id="gf-categoria">
+          <option value="">Todas las categorías</option>
+          <option>Limpieza</option><option>Papelería</option><option>Transporte</option><option>Servicios</option><option>Publicidad</option><option>Otro</option>
+        </select>
+        <button class="mini" onclick="render()">Aplicar</button>
+        <button class="mini" onclick="limpiarFiltro('g')">Limpiar</button>
+      </div>
+      <div id="lista-gastos"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-inventario">
+    <div class="card">
+      <h3>Agregar producto</h3>
+      <p class="hint">El código se genera solo — lo usás luego en Ventas y Compras.</p>
+      <div class="row">
+        <input type="text" id="i-producto" placeholder="Producto" style="text-transform:uppercase;">
+        <input list="categorias-inv" type="text" id="i-categoria" placeholder="Categoría (ej. Ropa, Comida)">
+        <datalist id="categorias-inv"></datalist>
+      </div>
+      <div class="row">
+        <input type="number" id="i-stock" placeholder="Stock inicial" min="0">
+        <input type="number" id="i-reorden" placeholder="Punto de reorden (ej. 3)" min="0">
+      </div>
+      <div class="row">
+        <input type="number" id="i-precio" placeholder="Precio de venta (con impuesto)" step="0.01">
+        <button class="secondary" type="button" onclick="abrirCalculadoraCostos('i-precio')"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px;"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="8" y1="10" x2="10" y2="10"></line><line x1="14" y1="10" x2="16" y2="10"></line><line x1="8" y1="14" x2="10" y2="14"></line><line x1="14" y1="14" x2="16" y2="14"></line></svg>Calculadora de costos</button>
+      </div>
+      <div class="row">
+        <select id="i-usar-calculo" onchange="if(this.value) usarCalculoEnCampo(parseInt(this.value),'i-precio')">
+          <option value="">O usar un cálculo guardado...</option>
+        </select>
+      </div>
+      <div class="row">
+        <label class="check-line"><input type="checkbox" id="i-qr"> Generar código QR</label>
+      </div>
+      <div class="row">
+        <button onclick="agregarProducto()">Agregar producto</button>
+        <button class="secondary" type="button" onclick="abrirCrearVariantes()">Crear con variantes (talla/color)</button>
+      </div>
+      <div class="row">
+        <button class="secondary" type="button" onclick="abrirCopiarProductos()">Copiar productos de otra tienda</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Inventario</h3>
+      <div class="filters" id="if-bar" style="display:none;">
+        <span>Filtrar</span>
+        <input type="text" id="if-texto" placeholder="Nombre, código, grupo o categoría" oninput="render()">
+        <select id="if-categoria" onchange="render()"><option value="">Todas las categorías</option></select>
+        <label class="check-line"><input type="checkbox" id="if-solo-variantes" onchange="render()"> Solo con variantes</label>
+        <button class="mini" onclick="limpiarFiltroInventario()">Limpiar</button>
+      </div>
+      <div id="lista-inventario"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-costos">
+    <div class="card">
+      <h3>Cálculos de costos guardados</h3>
+      <p class="hint">Calculá el costo de producción de un producto, guardalo por nombre, y usalo cuando quieras al fijar el precio en Inventario, Variantes o Combos.</p>
+      <div class="row"><button class="secondary" type="button" onclick="abrirCalculadoraCostos(null)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px;"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="8" y1="10" x2="10" y2="10"></line><line x1="14" y1="10" x2="16" y2="10"></line><line x1="8" y1="14" x2="10" y2="14"></line><line x1="14" y1="14" x2="16" y2="14"></line></svg>Nuevo cálculo</button></div>
+      <div id="lista-calculos"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-contabilidad">
+    <div class="card">
+      <h3>Capital invertido</h3>
+      <div class="cards" id="conta-capital"></div>
+    </div>
+    <div class="card">
+      <h3>Estado de resultados</h3>
+      <div class="row">
+        <input type="date" id="ct-desde">
+        <input type="date" id="ct-hasta">
+        <button class="mini" onclick="calcularContabilidad()">Calcular</button>
+      </div>
+      <div id="conta-resultados"><div class="empty">Elegí un rango de fechas.</div></div>
+    </div>
+    <div class="card">
+      <h3>Comparar con otro período</h3>
+      <div class="row"><label class="check-line"><input type="checkbox" id="ct-comparar" onchange="toggleComparar()"> Activar comparación</label></div>
+      <div class="row" id="ct-comparar-fechas" style="display:none;">
+        <input type="date" id="ct2-desde">
+        <input type="date" id="ct2-hasta">
+        <button class="mini" onclick="calcularContabilidad()">Comparar</button>
+      </div>
+      <div id="conta-comparacion"></div>
+    </div>
+    <div class="card" id="conta-card-tiendas">
+      <h3>Desglose por tienda</h3>
+      <div id="conta-tiendas"><div class="empty">Elegí un rango de fechas.</div></div>
+    </div>
+    <div class="card">
+      <button onclick="exportarContabilidadExcel()">Exportar reporte a Excel</button>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-promos">
+    <div class="accordion" id="acc-promo-nueva">
+      <div class="accordion-head" onclick="toggleAccordion('acc-promo-nueva')"><span>Crear promoción</span><span class="chev">▾</span></div>
+      <div class="accordion-body">
+        <p class="hint">Se crean una vez y la app las detecta y aplica sola al registrar una venta.</p>
+        <div class="row">
+          <input type="text" id="p-nombre" placeholder="Nombre de la promoción (ej. Camisas de temporada)">
+        </div>
+        <div class="row">
+          <select id="p-alcance" onchange="onPromoAlcanceChange()">
+            <option value="toda">Aplica a toda la tienda</option>
+            <option value="productos">Aplica a productos específicos</option>
+          </select>
+        </div>
+        <div id="p-productos-wrap" style="display:none;">
+          <p class="hint" style="margin-bottom:6px;">Marcá los productos a los que aplica:</p>
+          <div id="p-productos-list" style="max-height:160px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:10px;"></div>
+        </div>
+        <div class="row">
+          <select id="p-tipo" onchange="onPromoTipoChange()">
+            <option value="pct">Descuento por porcentaje</option>
+            <option value="monto">Descuento por monto fijo</option>
+            <option value="cantidad">Precio escalonado por cantidad</option>
+          </select>
+        </div>
+        <div id="p-campo-pct" class="row">
+          <input type="number" id="p-valor-pct" placeholder="% de descuento" min="0" max="100" step="0.1">
+        </div>
+        <div id="p-campo-monto" class="row" style="display:none;">
+          <input type="number" id="p-valor-monto" placeholder="Monto fijo de descuento por venta" min="0" step="0.01">
+        </div>
+        <div id="p-campo-cantidad" style="display:none;">
+          <p class="hint" style="margin-bottom:6px;">Ej: desde 2 unidades a $10 c/u, desde 6 unidades a $8 c/u.</p>
+          <div class="row"><input type="number" id="p-tramo1-cant" placeholder="Desde cuántas unidades" min="1" value="2"><input type="number" id="p-tramo1-precio" placeholder="Precio unitario (con IVA)" step="0.01"></div>
+          <div class="row"><input type="number" id="p-tramo2-cant" placeholder="Desde cuántas unidades (opcional)" min="1"><input type="number" id="p-tramo2-precio" placeholder="Precio unitario (con IVA)" step="0.01"></div>
+          <div class="row"><input type="number" id="p-tramo3-cant" placeholder="Desde cuántas unidades (opcional)" min="1"><input type="number" id="p-tramo3-precio" placeholder="Precio unitario (con IVA)" step="0.01"></div>
+        </div>
+        <div class="row">
+          <label class="check-line"><input type="checkbox" id="p-con-fecha" onchange="onPromoFechaChange()"> Ponerle fecha de inicio y fin</label>
+        </div>
+        <div id="p-fechas-wrap" class="row" style="display:none;">
+          <input type="date" id="p-fecha-inicio">
+          <input type="date" id="p-fecha-fin">
+        </div>
+        <p class="hint" id="p-fecha-hint">Sin fecha marcada, la promoción queda fija hasta que la pausés o elimines vos mismo.</p>
+        <div class="row">
+          <button onclick="crearPromocion()">Crear promoción</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion open" id="acc-promo-lista">
+      <div class="accordion-head" onclick="toggleAccordion('acc-promo-lista')"><span>Promociones activas</span><span class="chev">▾</span></div>
+      <div class="accordion-body">
+        <div id="lista-promociones"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Combos</h3>
+      <p class="hint">Un combo agrupa varios productos existentes bajo un solo precio de venta — al venderlo, descuenta stock de todos sus componentes. Sirve para bundles de ropa o combos de comida por igual.</p>
+      <div class="row"><button class="secondary" type="button" onclick="abrirCrearCombo()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>Crear combo</button></div>
+      <div id="lista-combos"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-config">
+    <div class="accordion" id="acc-impuestos">
+      <div class="accordion-head" onclick="toggleAccordion('acc-impuestos')"><span>Impuestos y moneda</span><span class="chev">▾</span></div>
+      <div class="accordion-body">
+        <div class="field-group">
+          <label>País / tasa de impuesto</label>
+          <select id="c-pais" onchange="cambiarPais()">
+            <option value="SV">El Salvador — IVA 13%</option>
+            <option value="GT">Guatemala — IVA 12%</option>
+            <option value="HN">Honduras — ISV 15%</option>
+            <option value="MX">México — IVA 16%</option>
+            <option value="CO">Colombia — IVA 19%</option>
+            <option value="custom">Otro (tasa personalizada)</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label>Tasa de impuesto (%)</label>
+          <input type="number" id="c-tasa" step="0.1" min="0" onchange="guardarConfig()">
+          <p class="hint">En Ventas, el precio que ingresás ya incluye este impuesto — el sistema lo separa. Cambiala cuando quieras.</p>
+        </div>
+        <div class="field-group">
+          <label>Símbolo de moneda</label>
+          <input type="text" id="c-moneda" maxlength="4" onchange="guardarConfig()">
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion" id="acc-datos">
+      <div class="accordion-head" onclick="toggleAccordion('acc-datos')"><span>Datos</span><span class="chev">▾</span></div>
+      <div class="accordion-body">
+        <p class="hint">Tus datos se guardan en la nube, ligados a tu tienda — accesibles desde cualquier dispositivo donde inicies sesión.</p>
+        <button class="secondary" onclick="reiniciarDatos()">Borrar todos los datos</button>
+      </div>
+    </div>
+
+    <div class="accordion propietario-only" id="acc-equipo" style="display:none;">
+      <div class="accordion-head" onclick="toggleAccordion('acc-equipo')"><span>Mi equipo</span><span class="chev">▾</span></div>
+      <div class="accordion-body">
+        <p class="hint">Vendedor: solo registra ventas. Contador: ve y registra Compras, Gastos y Cuentas por cobrar, y Contabilidad — Ventas y Kardex solo de lectura. Vos creás sus credenciales.</p>
+        <div class="row"><input type="text" id="ve-nombre" placeholder="Nombre"></div>
+        <div class="row"><input type="email" id="ve-email" placeholder="Correo"></div>
+        <div class="row">
+          <div class="pass-wrap"><input type="password" id="ve-pass" placeholder="Contraseña temporal"><button type="button" class="pass-toggle" onclick="togglePassView('ve-pass', this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle></svg></button></div>
+        </div>
+        <p class="hint" style="margin-top:-6px;">Mínimo 8 caracteres, con una mayúscula y un número.</p>
+        <div class="row">
+          <select id="ve-rol">
+            <option value="vendedor">Vendedor</option>
+            <option value="contador">Contador</option>
+          </select>
+          <button onclick="crearVendedorUI()">Crear cuenta</button>
+        </div>
+        <p class="hint" id="ve-error" style="color:var(--rust);"></p>
+        <div id="lista-vendedores" style="margin-top:10px;"></div>
+      </div>
+    </div>
+
+    <div class="accordion propietario-only" id="acc-cod-vendedor" style="display:none;">
+      <div class="accordion-head" onclick="toggleAccordion('acc-cod-vendedor')"><span>Código de vendedor</span><span class="chev">▾</span></div>
+      <div class="accordion-body">
+        <p class="hint">Un código que tus vendedores pueden escribir en Ventas para dar un descuento — con límite para que no se abuse.</p>
+        <div class="row"><input type="text" id="cv-codigo" placeholder="Código (ej. VENDEDOR10)" style="text-transform:uppercase;"></div>
+        <div class="row">
+          <select id="cv-tipo">
+            <option value="pct">Descuento por porcentaje</option>
+            <option value="monto">Descuento por monto fijo</option>
+          </select>
+          <input type="number" id="cv-valor" placeholder="Valor" min="0" step="0.01">
+        </div>
+        <div class="row"><input type="number" id="cv-limite" placeholder="Límite de usos al mes (0 = sin límite)" min="0" value="0"></div>
+        <div class="row"><label class="check-line"><input type="checkbox" id="cv-activo"> Código activo</label></div>
+        <div class="row"><button onclick="guardarCodigoVendedor()">Guardar código</button></div>
+        <p class="hint" id="cv-estado"></p>
+      </div>
+    </div>
+
+    <div class="accordion propietario-only" id="acc-tiendas" style="display:none;">
+      <div class="accordion-head" onclick="toggleAccordion('acc-tiendas')"><span>Mis tiendas</span><span class="chev">▾</span></div>
+      <div class="accordion-body">
+        <div id="lista-tiendas" style="margin-bottom:10px;"></div>
+        <p class="hint">Crear una tienda nueva le da su propio inventario, ventas y equipo, separados de las demás.</p>
+        <div class="row"><input type="text" id="nt-nombre" placeholder="Nombre de la nueva tienda"></div>
+        <div class="row"><button onclick="crearTiendaUI()">Crear tienda nueva</button></div>
+        <hr>
+        <p class="hint">Una <strong>cadena</strong> agrupa varias de tus tiendas (ej. sucursales de la misma marca) para que compartan el Kardex entre sí. Las tiendas fuera de una cadena quedan completamente separadas.</p>
+        <div id="lista-cadenas" style="margin-bottom:10px;"></div>
+        <div class="row"><input type="text" id="nc-nombre" placeholder="Nombre de la cadena (ej. Ropa XYZ)"></div>
+        <div id="nc-tiendas" style="margin-bottom:8px;"></div>
+        <div class="row"><button onclick="crearCadenaUI()">Crear cadena</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+
+let state = { ventas: [], compras: [], gastos: [], inventario: [], promociones: [], combos: [], config: { tasa: 13, moneda: '$' } };
+
+function toggleAccordion(id){
+  document.getElementById(id).classList.toggle('open');
+}
+function toggleMenuMas(){
+  document.getElementById('menu-mas').classList.toggle('open');
+  document.getElementById('menu-toggle-btn').classList.toggle('open');
+}
+function cerrarMenuMas(){
+  document.getElementById('menu-mas').classList.remove('open');
+  document.getElementById('menu-toggle-btn').classList.remove('open');
+}
+document.addEventListener('click', (e)=>{
+  const menu = document.getElementById('menu-mas');
+  const btn = document.getElementById('menu-toggle-btn');
+  if(menu && menu.classList.contains('open') && !menu.contains(e.target) && e.target !== btn && !btn.contains(e.target)){
+    cerrarMenuMas();
+  }
+});
+function toggleEnvioForm(){
+  document.getElementById('v-envio-wrap').style.display = document.getElementById('v-requiere-envio').checked ? 'block' : 'none';
+}
+
+let currentUid = null, currentRol = null, currentTiendaId = null, currentTiendas = [], currentNombre = '', currentCadenaId = null;
+
+function normalizarEstado(){
+  state.compras = state.compras || [];
+  state.promociones = state.promociones || [];
+  state.ventas.forEach(v=>{
+    v.historial = v.historial || [];
+    if(v.enviado===undefined) v.enviado=false;
+    if(v.requiereEnvio===undefined){ v.requiereEnvio=false; v.envio=null; }
+    if(v.vendedorAplicado===undefined) v.vendedorAplicado=false;
+    if(v.vendedorDescuentoMonto===undefined) v.vendedorDescuentoMonto=0;
+    if(v.metodoPago===undefined) v.metodoPago='efectivo';
+    if(v.estadoPago===undefined) v.estadoPago='pagado';
+    if(v.fechaPago===undefined) v.fechaPago=v.fecha;
+    if(v.codigoVenta===undefined) v.codigoVenta='V-'+String(v.id).slice(-6);
+    if(v.registradoPor===undefined) v.registradoPor={uid:null, nombre:'—'};
+    if(!v.items){
+      // Migración desde el formato viejo de un solo producto por venta
+      v.items = [{ codigo:v.codigo||'', producto:v.producto||'', cantidad:v.cantidad||1, precioUnit:v.precio||0, totalBruto:v.totalBruto||v.total||0, promoAplicada:v.promoAplicada||null, descuentoMonto:v.descuentoMonto||0, total:v.total||0 }];
+      if(v.descuentoMonto===undefined) v.descuentoMonto = 0;
+      if(v.totalBruto===undefined) v.totalBruto = v.total;
+    }
+    v.items.forEach(it=>{
+      if(it.esCombo && !it.componentesResueltos){
+        const combo = (state.combos||[]).find(c=>c.codigo===it.codigo);
+        it.componentesResueltos = combo ? combo.componentes.filter(c=>c.tipo!=='grupo').map(c=>({codigo:c.codigo, cantidad:c.cantidad})) : [];
+      }
+    });
+  });
+  state.inventario.forEach(p=>{ if(p.qr===undefined) p.qr=false; if(p.categoria===undefined) p.categoria=''; if(p.grupoNombre===undefined) p.grupoNombre=null; });
+  state.promociones.forEach(p=>{ if(p.fechaInicio===undefined){ p.fechaInicio=null; p.fechaFin=null; } });
+  if(!state.codigoVendedor) state.codigoVendedor = { codigo:'', tipo:'pct', valor:0, limiteMensual:0, activo:false, usos:{mesActual:'', cantidad:0} };
+  state.combos = state.combos || [];
+  state.calculosCosto = state.calculosCosto || [];
+  state.combos.forEach(c=>{ if(c.activo===undefined) c.activo=true; if(c.qr===undefined) c.qr=false; c.componentes.forEach(comp=>{ if(comp.tipo===undefined) comp.tipo='producto'; }); });
+}
+
+const ICONO_TAG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M20.59 13.41 11 3.83 3.83 11l9.58 9.59a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.83Z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg>';
+const ICONO_PERSONA = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
+const ICONO_CAJA = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5"></path><path d="M12 22V12"></path></svg>';
+const ICONO_CHECK = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+const ICONO_ALERTA = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>';
+const ICONO_CALENDARIO = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>';
+const ICONO_CALC = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="8" y1="10" x2="10" y2="10"></line><line x1="14" y1="10" x2="16" y2="10"></line><line x1="8" y1="14" x2="10" y2="14"></line><line x1="14" y1="14" x2="16" y2="14"></line></svg>';
+const ICONO_MAS = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>';
+const ICONO_X = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+const ICONO_GUARDAR = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>';
+
+const ICONO_OJO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+const ICONO_OJO_TACHADO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.4 18.4 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
+function togglePassView(id, btn){
+  const el = document.getElementById(id);
+  const mostrar = el.type === 'password';
+  el.type = mostrar ? 'text' : 'password';
+  btn.innerHTML = mostrar ? ICONO_OJO_TACHADO : ICONO_OJO;
+}
+function passwordValida(pass){
+  return /^(?=.*[A-Z])(?=.*\d).{8,}$/.test(pass);
+}
+
+async function cargarDatosTienda(){
+  try{
+    const raw = await window.fb.leerDatosTienda(currentTiendaId);
+    if(raw) state = JSON.parse(raw);
+    else state = { ventas: [], compras: [], gastos: [], inventario: [], promociones: [], combos: [], config: { tasa: 13, moneda: '$' } };
+  }catch(e){ console.error(e); }
+  normalizarEstado();
+  document.getElementById('c-tasa').value = state.config.tasa;
+  document.getElementById('c-moneda').value = state.config.moneda;
+  document.getElementById('cv-codigo').value = state.codigoVendedor.codigo;
+  document.getElementById('cv-tipo').value = state.codigoVendedor.tipo;
+  document.getElementById('cv-valor').value = state.codigoVendedor.valor;
+  document.getElementById('cv-limite').value = state.codigoVendedor.limiteMensual;
+  document.getElementById('cv-activo').checked = state.codigoVendedor.activo;
+  render();
+}
+async function guardar(){
+  if(!currentTiendaId) return;
+  try{ await window.fb.guardarDatosTienda(currentTiendaId, state); }catch(e){ console.error(e); }
+}
+function fmt(n){ return state.config.moneda + Number(n||0).toFixed(2); }
+
+function mensajeErrorAuth(err){
+  const c = err && err.code || '';
+  if(c.includes('email-already-in-use')) return 'Ese correo ya tiene una cuenta — probá iniciar sesión.';
+  if(c.includes('invalid-email')) return 'El correo no es válido.';
+  if(c.includes('weak-password')) return 'La contraseña es muy débil.';
+  if(c.includes('invalid-credential') || c.includes('wrong-password') || c.includes('user-not-found')) return 'Correo o contraseña incorrectos.';
+  if(c.includes('popup-closed-by-user')) return 'Se cerró la ventana de Google antes de terminar.';
+  return 'Ocurrió un error. Intentá de nuevo.';
+}
+function abrirFormularioRegistro(){
+  openModal(`
+    <h3>Creá tu cuenta</h3>
+    <p class="hint">Todo en un solo paso — así entrás directo a trabajar.</p>
+    <div class="field-group"><label>Tu nombre</label><input type="text" id="reg-nombre" placeholder="Nombre completo"></div>
+    <div class="field-group"><label>Correo electrónico</label><input type="email" id="reg-email" placeholder="correo@ejemplo.com"></div>
+    <div class="field-group">
+      <label>Contraseña</label>
+      <div class="pass-wrap">
+        <input type="password" id="reg-pass" placeholder="Contraseña">
+        <button type="button" class="pass-toggle" onclick="togglePassView('reg-pass', this)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        </button>
+      </div>
+      <p class="hint" style="margin:0;">Mínimo 8 caracteres, con una mayúscula y un número.</p>
+    </div>
+    <div class="field-group"><label>Teléfono (con WhatsApp si tenés)</label><input type="text" id="reg-telefono" placeholder="Ej. 7000-0000"></div>
+    <div class="field-group">
+      <label>País</label>
+      <select id="reg-pais">
+        <option value="SV">El Salvador</option>
+        <option value="GT">Guatemala</option>
+        <option value="HN">Honduras</option>
+        <option value="NI">Nicaragua</option>
+        <option value="CR">Costa Rica</option>
+        <option value="PA">Panamá</option>
+        <option value="MX">México</option>
+        <option value="CO">Colombia</option>
+        <option value="otro">Otro</option>
+      </select>
+    </div>
+    <div class="field-group"><label>¿A qué se dedica tu negocio?</label><input type="text" id="reg-rubro" placeholder="Ej. ropa, comida, artesanías"></div>
+    <div class="field-group"><label>Nombre de tu tienda</label><input type="text" id="reg-tienda" placeholder="Nombre de tu tienda"></div>
+    <p class="hint" id="reg-error" style="color:var(--rust);"></p>
+    <div class="row">
+      <button class="secondary" onclick="closeModal()">Cancelar</button>
+      <button onclick="confirmarRegistroCompleto()">Crear cuenta</button>
+    </div>
+  `);
+}
+async function confirmarRegistroCompleto(){
+  const nombre = document.getElementById('reg-nombre').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const pass = document.getElementById('reg-pass').value;
+  const telefono = document.getElementById('reg-telefono').value.trim();
+  const pais = document.getElementById('reg-pais').value;
+  const rubro = document.getElementById('reg-rubro').value.trim();
+  const tienda = document.getElementById('reg-tienda').value.trim();
+  const err = document.getElementById('reg-error');
+  err.textContent = '';
+  if(!nombre || !tienda){ err.textContent = 'Metele al menos tu nombre y el nombre de tu tienda.'; return; }
+  if(!email){ err.textContent = 'Metele un correo válido.'; return; }
+  if(!passwordValida(pass)){ err.textContent = 'La contraseña necesita mínimo 8 caracteres, una mayúscula y un número.'; return; }
+  window._datosRegistroPendiente = { nombre, telefono, pais, rubro, tienda };
+  try{
+    await window.fb.registrar(email, pass);
+    closeModal();
+  }catch(e){
+    window._datosRegistroPendiente = null;
+    err.textContent = mensajeErrorAuth(e);
+  }
+}
+async function hacerLogin(){
+  const email = document.getElementById('auth-email').value.trim();
+  const pass = document.getElementById('auth-pass').value;
+  const err = document.getElementById('auth-error');
+  err.textContent = '';
+  if(!email || !pass){ err.textContent = 'Metele tu correo y contraseña.'; return; }
+  try{ await window.fb.iniciarSesion(email, pass); }
+  catch(e){ err.textContent = mensajeErrorAuth(e); }
+}
+async function hacerLoginGoogle(){
+  const err = document.getElementById('auth-error');
+  err.textContent = '';
+  try{ await window.fb.iniciarSesionGoogle(); }
+  catch(e){ err.textContent = mensajeErrorAuth(e); }
+}
+async function hacerRecuperarPassword(){
+  const email = document.getElementById('auth-email').value.trim();
+  const err = document.getElementById('auth-error');
+  err.textContent = '';
+  if(!email){ err.textContent = 'Escribí tu correo arriba y tocá el link de nuevo — te mandamos el enlace ahí.'; return; }
+  try{
+    await window.fb.recuperarPassword(email);
+    err.style.color = 'var(--moss)';
+    err.textContent = 'Listo — revisá tu correo para restablecer la contraseña.';
+  }catch(e){ err.style.color = 'var(--rust)'; err.textContent = mensajeErrorAuth(e); }
+}
+function hacerLogout(){
+  window.fb.cerrarSesion();
+}
+
+function aplicarRestriccionesRol(){
+  const esVendedor = currentRol === 'vendedor';
+  const esContador = currentRol === 'contador';
+  document.querySelectorAll('.propietario-only').forEach(el=>{ el.style.display = (esVendedor||esContador) ? 'none' : ''; });
+  document.getElementById('btn-excel-header').style.display = esVendedor ? 'none' : 'inline-flex';
+  document.getElementById('v-codigo-vendedor-wrap').style.display = esVendedor ? 'flex' : 'none';
+
+  const tabsPermitidasVendedor = ['ventas','kardex'];
+  const tabsPermitidasContador = ['resumen','ventas','kardex','compras','gastos','contabilidad'];
+  document.querySelectorAll('.tab').forEach(t=>{
+    let visible = true;
+    if(esVendedor) visible = tabsPermitidasVendedor.includes(t.dataset.tab);
+    else if(esContador) visible = tabsPermitidasContador.includes(t.dataset.tab);
+    t.style.display = visible ? 'flex' : 'none';
+  });
+  document.querySelectorAll('.menu-mas-group').forEach(g=>{
+    const visibles = Array.from(g.querySelectorAll('.tab')).some(t=>t.style.display !== 'none');
+    g.classList.toggle('vacio', !visibles);
+  });
+  const grupoConVisibles = Array.from(document.querySelectorAll('.menu-mas-group')).some(g=>!g.classList.contains('vacio'));
+  document.getElementById('menu-toggle-btn').style.display = grupoConVisibles ? 'flex' : 'none';
+
+  // Contador: Ventas y Kardex de solo lectura — no registra ni edita ventas
+  const ventasSoloLectura = document.getElementById('ventas-registrar-card');
+  if(ventasSoloLectura) ventasSoloLectura.style.display = esContador ? 'none' : '';
+  document.querySelectorAll('.venta-accion-editar').forEach(el=>{ el.style.display = esContador ? 'none' : ''; });
+
+  if(esVendedor){
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    document.getElementById('panel-ventas').classList.add('active');
+    document.querySelector('.tab[data-tab="ventas"]').classList.add('active');
+  } else if(esContador){
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    document.getElementById('panel-resumen').classList.add('active');
+    document.querySelector('.tab[data-tab="resumen"]').classList.add('active');
+  }
+}
+
+function slugify(texto){
+  return (texto||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') || 'tienda';
+}
+async function generarTiendaIdUnico(nombre){
+  const base = slugify(nombre);
+  let candidato = base, n = 1;
+  while(await window.fb.leerTienda(candidato)){
+    n++;
+    candidato = `${base}-${n}`;
+  }
+  return candidato;
+}
+
+async function crearTiendaParaNuevoPropietario(datos, uid, email){
+  const tiendaId = await generarTiendaIdUnico(datos.tienda);
+  await window.fb.crearTienda(tiendaId, { nombre: datos.tienda, propietarioUid: uid, creada: new Date().toISOString(), pais: datos.pais });
+  await window.fb.guardarUsuario(uid, {
+    rol:'propietario', tiendaId, tiendas:[tiendaId], activo:true,
+    nombre: datos.nombre, email, telefono: datos.telefono, pais: datos.pais, rubro: datos.rubro
+  });
+  return tiendaId;
+}
+
+function pedirNombreTienda(callback){
+  openModal(`
+    <h3>¡Bienvenido a MAQUI INVENTORY!</h3>
+    <p class="hint">Es tu primera vez — contanos un poco de vos y tu negocio para dejarte todo listo.</p>
+    <div class="field-group"><label>Tu nombre</label><input type="text" id="ob-nombre" placeholder="Nombre completo"></div>
+    <div class="field-group"><label>Teléfono (con WhatsApp si tenés)</label><input type="text" id="ob-telefono" placeholder="Ej. 7000-0000"></div>
+    <div class="field-group">
+      <label>País</label>
+      <select id="ob-pais">
+        <option value="SV">El Salvador</option>
+        <option value="GT">Guatemala</option>
+        <option value="HN">Honduras</option>
+        <option value="NI">Nicaragua</option>
+        <option value="CR">Costa Rica</option>
+        <option value="PA">Panamá</option>
+        <option value="MX">México</option>
+        <option value="CO">Colombia</option>
+        <option value="otro">Otro</option>
+      </select>
+    </div>
+    <div class="field-group"><label>¿A qué se dedica tu negocio?</label><input type="text" id="ob-rubro" placeholder="Ej. ropa, comida, artesanías"></div>
+    <div class="field-group"><label>Nombre de tu tienda</label><input type="text" id="ob-tienda" placeholder="Nombre de tu tienda"></div>
+    <p class="hint" id="ob-error" style="color:var(--rust);"></p>
+    <div class="row"><button onclick="confirmarPrimeraTienda()">Empezar</button></div>
+  `);
+  window._callbackPrimeraTienda = callback;
+}
+function confirmarPrimeraTienda(){
+  const nombre = document.getElementById('ob-nombre').value.trim();
+  const telefono = document.getElementById('ob-telefono').value.trim();
+  const pais = document.getElementById('ob-pais').value;
+  const rubro = document.getElementById('ob-rubro').value.trim();
+  const tienda = document.getElementById('ob-tienda').value.trim();
+  const err = document.getElementById('ob-error');
+  if(!nombre || !tienda){ err.textContent = 'Metele al menos tu nombre y el nombre de tu tienda.'; return; }
+  closeModal();
+  if(window._callbackPrimeraTienda) window._callbackPrimeraTienda({ nombre, telefono, pais, rubro, tienda });
+}
+
+async function resolverSesion(user){
+  currentUid = user.uid;
+  let usuario = await window.fb.leerUsuario(user.uid);
+  if(!usuario){
+    if(window._datosRegistroPendiente){
+      const datos = window._datosRegistroPendiente;
+      window._datosRegistroPendiente = null;
+      const tiendaId = await crearTiendaParaNuevoPropietario(datos, user.uid, user.email);
+      currentRol = 'propietario'; currentTiendaId = tiendaId; currentTiendas = [tiendaId]; currentNombre = datos.nombre;
+      finalizarEntrada(datos.tienda);
+      return;
+    }
+    pedirNombreTienda(async (datos)=>{
+      const tiendaId = await crearTiendaParaNuevoPropietario(datos, user.uid, user.email);
+      currentRol = 'propietario'; currentTiendaId = tiendaId; currentTiendas = [tiendaId]; currentNombre = datos.nombre;
+      finalizarEntrada(datos.tienda);
+    });
+    return;
+  }
+  if(usuario.activo === false){
+    mostrarAlerta('Tu cuenta fue desactivada por el propietario de la tienda. Contactalo si creés que es un error.');
+    await window.fb.cerrarSesion();
+    return;
+  }
+  currentRol = usuario.rol;
+  currentTiendaId = usuario.tiendaId;
+  currentTiendas = usuario.tiendas || [usuario.tiendaId];
+  currentNombre = usuario.nombre || '';
+  const tienda = await window.fb.leerTienda(currentTiendaId);
+  currentCadenaId = tienda ? (tienda.cadenaId || null) : null;
+  finalizarEntrada(tienda ? tienda.nombre : '—');
+}
+
+async function finalizarEntrada(nombreTienda){
+  document.getElementById('badge-rol').textContent = currentRol === 'propietario' ? 'Propietario' : (currentRol === 'contador' ? 'Contador' : 'Vendedor');
+  document.getElementById('badge-tienda').textContent = nombreTienda;
+  aplicarRestriccionesRol();
+  await cargarDatosTienda();
+  if(currentRol === 'propietario'){
+    await refrescarListaVendedores();
+    await refrescarListaTiendas();
+    await refrescarListaCadenas();
+  }
+}
+
+function arrancarEscuchaSesion(){
+  window.fb.onAuthChange(async (user)=>{
+    if(user){
+      document.getElementById('auth-screen').style.display = 'none';
+      document.getElementById('app-screen').style.display = 'block';
+      document.getElementById('auth-email').value = '';
+      document.getElementById('auth-pass').value = '';
+      await resolverSesion(user);
+    } else {
+      document.getElementById('app-screen').style.display = 'none';
+      document.getElementById('auth-screen').style.display = 'block';
+      currentUid = null; currentRol = null; currentTiendaId = null; currentTiendas = [];
+    }
+  });
+}
+if(window.fb){
+  arrancarEscuchaSesion();
+} else {
+  window.addEventListener('fbListo', arrancarEscuchaSesion, { once: true });
+  setTimeout(()=>{
+    if(!window.fb){
+      const err = document.getElementById('auth-error');
+      if(err) err.textContent = 'No se pudo conectar con el servidor. Verificá tu conexión a internet y recargá la página.';
+    }
+  }, 7000);
+}
+
+async function crearVendedorUI(){
+  const nombre = document.getElementById('ve-nombre').value.trim();
+  const email = document.getElementById('ve-email').value.trim();
+  const pass = document.getElementById('ve-pass').value;
+  const rol = document.getElementById('ve-rol').value;
+  const err = document.getElementById('ve-error');
+  err.textContent = '';
+  if(!nombre || !email){ err.textContent = 'Metele nombre y correo.'; return; }
+  if(!passwordValida(pass)){ err.textContent = 'La contraseña necesita mínimo 8 caracteres, una mayúscula y un número.'; return; }
+  try{
+    await window.fb.crearVendedor(email, pass, { rol, tiendaId: currentTiendaId, nombre, email, activo:true });
+    document.getElementById('ve-nombre').value=''; document.getElementById('ve-email').value=''; document.getElementById('ve-pass').value='';
+    await refrescarListaVendedores();
+    mostrarAlerta(`Cuenta de ${rol} creada. Compartile a ${nombre} el correo y la contraseña para que inicie sesión.`);
+  }catch(e){ err.textContent = mensajeErrorAuth(e); }
+}
+async function refrescarListaVendedores(){
+  const equipo = await window.fb.listarVendedores(currentTiendaId);
+  const el = document.getElementById('lista-vendedores');
+  if(!el) return;
+  el.innerHTML = equipo.length ? equipo.map(v=>
+    `<div class="row" style="justify-content:space-between;flex-wrap:nowrap;background:var(--paper);padding:8px 10px;border-radius:8px;">
+      <span style="font-size:13px;">${v.nombre} <span class="hint" style="margin:0;">(${v.email}) — ${v.rol==='contador'?'Contador':'Vendedor'}</span></span>
+      <span class="tag ${v.activo?'ok':'low'}" style="cursor:pointer;" onclick="toggleVendedorActivo('${v.uid}', ${!v.activo})">${v.activo?'Activo':'Desactivado'}</span>
+    </div>`
+  ).join('') : '<p class="empty">Todavía no creás vendedores ni contadores.</p>';
+}
+async function toggleVendedorActivo(uid, nuevoEstado){
+  await window.fb.guardarUsuario(uid, { activo: nuevoEstado });
+  await refrescarListaVendedores();
+}
+
+function guardarCodigoVendedor(){
+  const codigo = document.getElementById('cv-codigo').value.trim().toUpperCase();
+  const tipo = document.getElementById('cv-tipo').value;
+  const valor = parseFloat(document.getElementById('cv-valor').value) || 0;
+  const limiteMensual = parseFloat(document.getElementById('cv-limite').value) || 0;
+  const activo = document.getElementById('cv-activo').checked;
+  if(activo && (!codigo || valor<=0)){ document.getElementById('cv-estado').textContent = 'Metele un código y un valor válido para activarlo.'; return; }
+  state.codigoVendedor = { codigo, tipo, valor, limiteMensual, activo, usos: state.codigoVendedor.usos || {mesActual:'', cantidad:0} };
+  guardar();
+  document.getElementById('cv-estado').innerHTML = ICONO_CHECK + ' Código guardado.';
+}
+
+async function crearTiendaUI(){
+  const nombre = document.getElementById('nt-nombre').value.trim();
+  if(!nombre) return;
+  const tiendaId = await generarTiendaIdUnico(nombre);
+  await window.fb.crearTienda(tiendaId, { nombre, propietarioUid: currentUid, creada: new Date().toISOString() });
+  currentTiendas.push(tiendaId);
+  await window.fb.guardarUsuario(currentUid, { tiendas: currentTiendas });
+  document.getElementById('nt-nombre').value = '';
+  await refrescarListaTiendas();
+  mostrarAlerta(`Tienda "${nombre}" creada. Tocá "Cambiar" en la lista para entrar a ella.`);
+}
+async function refrescarListaTiendas(){
+  const el = document.getElementById('lista-tiendas');
+  if(!el) return;
+  const nombres = await Promise.all(currentTiendas.map(async id => ({ id, t: await window.fb.leerTienda(id) })));
+  el.innerHTML = nombres.map(({id,t})=>
+    `<div class="row" style="justify-content:space-between;flex-wrap:nowrap;background:var(--paper);padding:8px 10px;border-radius:8px;">
+      <span style="font-size:13px;">${t ? t.nombre : id}${id===currentTiendaId?' <span class="tag ok">Activa</span>':''}${t&&t.cadenaId?' <span class="tag edit">En cadena</span>':''}</span>
+      <span class="actions">
+        ${id!==currentTiendaId ? `<button class="mini" onclick="cambiarTienda('${id}')">Cambiar</button>` : ''}
+        <button class="mini" onclick="editarNombreTiendaUI('${id}','${(t?t.nombre:id).replace(/'/g,"\\'")}')">Editar</button>
+        ${currentTiendas.length>1 ? `<button class="danger" onclick="eliminarTiendaUI('${id}')">Eliminar</button>` : ''}
+      </span>
+    </div>`
+  ).join('');
+  const opciones = nombres.map(({id,t})=>`<label class="check-line"><input type="checkbox" class="nc-tienda-check" value="${id}"> ${t?t.nombre:id}</label>`).join('');
+  const ncEl = document.getElementById('nc-tiendas');
+  if(ncEl) ncEl.innerHTML = opciones;
+}
+
+async function crearCadenaUI(){
+  const nombre = document.getElementById('nc-nombre').value.trim();
+  const tiendaIds = Array.from(document.querySelectorAll('.nc-tienda-check:checked')).map(el=>el.value);
+  if(!nombre){ mostrarAlerta('Ponele un nombre a la cadena.'); return; }
+  if(tiendaIds.length<2){ mostrarAlerta('Elegí al menos 2 tiendas para formar una cadena.'); return; }
+  const cadenaId = 'cadena_' + Date.now();
+  await window.fb.crearCadena(cadenaId, { nombre, propietarioUid: currentUid, tiendaIds });
+  await Promise.all(tiendaIds.map(id => window.fb.actualizarTienda(id, { cadenaId })));
+  if(tiendaIds.includes(currentTiendaId)) currentCadenaId = cadenaId;
+  document.getElementById('nc-nombre').value = '';
+  await refrescarListaTiendas();
+  await refrescarListaCadenas();
+  mostrarAlerta(`Cadena "${nombre}" creada con ${tiendaIds.length} tiendas.`);
+}
+async function refrescarListaCadenas(){
+  const el = document.getElementById('lista-cadenas');
+  if(!el) return;
+  const nombres = await Promise.all(currentTiendas.map(async id => ({ id, t: await window.fb.leerTienda(id) })));
+  const cadenaIds = [...new Set(nombres.map(x=>x.t&&x.t.cadenaId).filter(Boolean))];
+  if(!cadenaIds.length){ el.innerHTML = '<p class="empty">Todavía no creás cadenas.</p>'; return; }
+  const cadenas = await Promise.all(cadenaIds.map(async id => ({ id, c: await window.fb.leerCadena(id) })));
+  el.innerHTML = cadenas.map(({id,c})=>{
+    if(!c) return '';
+    const nombresTiendas = nombres.filter(x=>x.t&&x.t.cadenaId===id).map(x=>x.t.nombre).join(', ');
+    return `<div class="card" style="margin-bottom:8px;padding:10px 12px;">
+      <strong style="font-size:13px;">${c.nombre}</strong>
+      <p class="hint" style="margin:4px 0 8px;">${nombresTiendas}</p>
+      <button class="danger" onclick="desarmarCadenaUI('${id}')">Desarmar cadena</button>
+    </div>`;
+  }).join('');
+}
+function desarmarCadenaUI(cadenaId){
+  confirmarAccion('¿Desarmar esta cadena? Las tiendas dejan de compartir el Kardex entre sí.', async ()=>{
+    const cadena = await window.fb.leerCadena(cadenaId);
+    if(cadena) await Promise.all(cadena.tiendaIds.map(id => window.fb.actualizarTienda(id, { cadenaId: null })));
+    if(currentCadenaId === cadenaId) currentCadenaId = null;
+    await refrescarListaTiendas();
+    await refrescarListaCadenas();
+  });
+}
+
+async function stockEnHermanas(nombreProducto){
+  if(!currentCadenaId) return null;
+  const cadena = await window.fb.leerCadena(currentCadenaId);
+  if(!cadena) return [];
+  const otras = cadena.tiendaIds.filter(id=>id!==currentTiendaId);
+  return Promise.all(otras.map(async id=>{
+    const t = await window.fb.leerTienda(id);
+    const raw = await window.fb.leerDatosTienda(id);
+    let stock = null;
+    if(raw){
+      try{
+        const datosSucursal = JSON.parse(raw);
+        const match = (datosSucursal.inventario||[]).find(p=>p.producto.toLowerCase()===nombreProducto.toLowerCase());
+        if(match) stock = match.stock;
+      }catch(e){}
+    }
+    return { nombre: t?t.nombre:id, stock };
+  }));
+}
+function renderStockHermanas(resultados){
+  const sucEl = document.getElementById('kx-sucursales');
+  const conDato = resultados.filter(r=>r.stock!==null);
+  sucEl.innerHTML = conDato.length ? resultados.map(r=>
+    `<div class="row" style="justify-content:space-between;flex-wrap:nowrap;"><span>${r.nombre}</span><span class="num">${r.stock!==null?r.stock+' unidades':'No tiene este producto'}</span></div>`
+  ).join('') : '<div class="empty">Ninguna de tus otras sucursales tiene este producto.</div>';
+}
+async function cargarKardex(){
+  const nombre = document.getElementById('kx-producto').value.trim();
+  const producto = state.inventario.find(p=>p.producto.toLowerCase()===nombre.toLowerCase());
+  const movEl = document.getElementById('kx-movimientos');
+  const sucEl = document.getElementById('kx-sucursales');
+  const sucCard = document.getElementById('kx-card-sucursales');
+  if(!nombre){ movEl.innerHTML = '<div class="empty">Buscá un producto por nombre.</div>'; sucCard.style.display = 'none'; return; }
+
+  if(!producto){
+    // Todavía no está en tu inventario local — igual se puede consultar en tus sucursales hermanas
+    movEl.innerHTML = '<div class="empty">Este producto todavía no está en tu inventario.</div>';
+    if(!currentCadenaId){ sucCard.style.display = 'none'; return; }
+    sucCard.style.display = 'block';
+    sucEl.innerHTML = '<div class="empty">Consultando sucursales...</div>';
+    const resultados = await stockEnHermanas(nombre);
+    renderStockHermanas(resultados || []);
+    return;
+  }
+
+  const movimientos = [];
+  state.ventas.forEach(v=>{
+    v.items.forEach(it=>{
+      if(!it.esCombo && it.codigo === producto.codigo){
+        movimientos.push({fecha:v.fecha, tipo:'Venta', cambio:-it.cantidad, ref:v.codigoVenta});
+      } else if(it.esCombo && it.componentesResueltos){
+        const comp = it.componentesResueltos.find(c=>c.codigo === producto.codigo);
+        if(comp) movimientos.push({fecha:v.fecha, tipo:'Venta (combo)', cambio:-(comp.cantidad * it.cantidad), ref:`${v.codigoVenta} — ${it.producto}`});
+      }
+    });
+  });
+  state.compras.forEach(c=>{
+    if(c.codigo === producto.codigo) movimientos.push({fecha:c.fecha, tipo:'Compra', cambio:c.cantidad, ref:c.proveedor||'—'});
+  });
+  movimientos.sort((a,b)=> a.fecha.localeCompare(b.fecha));
+  let saldo = producto.stock - movimientos.reduce((s,m)=>s+m.cambio,0);
+  const filas = movimientos.map(m=>{
+    saldo += m.cambio;
+    return `<tr><td>${m.fecha}</td><td>${m.tipo}</td><td>${m.ref}</td><td class="num" style="color:${m.cambio>0?'var(--moss)':'var(--rust)'}">${m.cambio>0?'+':''}${m.cambio}</td><td class="num">${saldo}</td></tr>`;
+  });
+  movEl.innerHTML = filas.length ? `<div class="table-scroll"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Referencia</th><th class="num">Cambio</th><th class="num">Saldo</th></tr></thead><tbody>${filas.join('')}</tbody></table></div>` : '<div class="empty">Sin movimientos todavía para este producto.</div>';
+
+  if(!currentCadenaId){ sucCard.style.display = 'none'; return; }
+  sucCard.style.display = 'block';
+  sucEl.innerHTML = '<div class="empty">Consultando sucursales...</div>';
+  const resultados = await stockEnHermanas(producto.producto);
+  renderStockHermanas(resultados || []);
+}
+async function poblarDatalistKardex(){
+  const nombres = new Set(state.inventario.map(p=>p.producto));
+  if(currentCadenaId){
+    const cadena = await window.fb.leerCadena(currentCadenaId);
+    if(cadena){
+      const otras = cadena.tiendaIds.filter(id=>id!==currentTiendaId);
+      await Promise.all(otras.map(async id=>{
+        const raw = await window.fb.leerDatosTienda(id);
+        if(raw){
+          try{ const d = JSON.parse(raw); (d.inventario||[]).forEach(p=>nombres.add(p.producto)); }catch(e){}
+        }
+      }));
+    }
+  }
+  const dl = document.getElementById('nombres-kardex');
+  if(dl) dl.innerHTML = [...nombres].map(n=>`<option value="${n}">`).join('');
+}
+
+function eliminarTiendaUI(tiendaId){
+  if(tiendaId === currentTiendaId){
+    mostrarAlerta('No podés eliminar la tienda activa — primero cambiate a otra tienda y luego eliminá esta.');
+    return;
+  }
+  confirmarAccion('¿Eliminar esta tienda? Se borran sus ventas, inventario y todos sus datos — esto no se puede deshacer.', async ()=>{
+    try{
+      await window.fb.eliminarTienda(tiendaId);
+      currentTiendas = currentTiendas.filter(id => id !== tiendaId);
+      await window.fb.guardarUsuario(currentUid, { tiendas: currentTiendas });
+      await refrescarListaTiendas();
+    }catch(e){
+      mostrarAlerta('No se pudo eliminar la tienda. Si esto sigue pasando, revisá que las reglas de Firestore permitan borrar en /tiendas/{tiendaId}.');
+    }
+  });
+}
+function editarNombreTiendaUI(tiendaId, nombreActual){
+  openModal(`
+    <h3>Editar nombre de tienda</h3>
+    <div class="field-group"><input type="text" id="etn-nombre" value="${nombreActual}"></div>
+    <div class="row">
+      <button class="secondary" onclick="closeModal()">Cancelar</button>
+      <button onclick="guardarNombreTienda('${tiendaId}')">Guardar</button>
+    </div>
+  `);
+}
+async function guardarNombreTienda(tiendaId){
+  const nombre = document.getElementById('etn-nombre').value.trim();
+  if(!nombre) return;
+  await window.fb.actualizarTienda(tiendaId, { nombre });
+  if(tiendaId === currentTiendaId) document.getElementById('badge-tienda').textContent = nombre;
+  closeModal();
+  await refrescarListaTiendas();
+}
+async function cambiarTienda(tiendaId){
+  currentTiendaId = tiendaId;
+  await window.fb.guardarUsuario(currentUid, { tiendaId });
+  const tienda = await window.fb.leerTienda(tiendaId);
+  currentCadenaId = tienda ? (tienda.cadenaId || null) : null;
+  document.getElementById('badge-tienda').textContent = tienda ? tienda.nombre : '—';
+  await cargarDatosTienda();
+  await refrescarListaTiendas();
+  await refrescarListaCadenas();
+}
+
+
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('panel-'+t.dataset.tab).classList.add('active');
+    if(t.closest('#menu-mas')) cerrarMenuMas();
+    if(t.dataset.tab === 'kardex') poblarDatalistKardex();
+    if(t.dataset.tab === 'contabilidad') calcularContabilidad();
+  });
+});
+
+function cambiarPais(){
+  const tasas = {SV:13, GT:12, HN:15, MX:16, CO:19};
+  const pais = document.getElementById('c-pais').value;
+  if(tasas[pais] !== undefined){ document.getElementById('c-tasa').value = tasas[pais]; guardarConfig(); }
+}
+function guardarConfig(){
+  state.config.tasa = parseFloat(document.getElementById('c-tasa').value) || 0;
+  state.config.moneda = document.getElementById('c-moneda').value || '$';
+  guardar(); render();
+}
+function limpiarFiltro(p){
+  document.getElementById(p+'f-desde').value='';
+  document.getElementById(p+'f-hasta').value='';
+  if(document.getElementById(p+'f-texto')) document.getElementById(p+'f-texto').value='';
+  if(document.getElementById(p+'f-categoria')) document.getElementById(p+'f-categoria').value='';
+  render();
+}
+function enRango(fecha, desde, hasta){
+  if(desde && fecha < desde) return false;
+  if(hasta && fecha > hasta) return false;
+  return true;
+}
+
+function generarCodigo(producto, categoria){
+  const fuente = (categoria && categoria.trim()) ? categoria : producto;
+  let base = fuente.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3) || 'PRD';
+  let n = 1, codigo;
+  do{ codigo = base + '-' + String(n).padStart(3,'0'); n++; } while(
+    state.inventario.some(p=>p.codigo===codigo) || state.combos.some(c=>c.codigo===codigo)
+  );
+  return codigo;
+}
+
+function autollenarVenta(){
+  const codigo = document.getElementById('v-codigo').value.trim().toUpperCase();
+  const item = state.inventario.find(p=>p.codigo===codigo);
+  if(item){
+    document.getElementById('v-producto').value = item.producto;
+    if(item.precioVenta) document.getElementById('v-precio').value = item.precioVenta;
+  } else {
+    const combo = state.combos.find(c=>c.codigo===codigo && c.activo);
+    if(combo){
+      document.getElementById('v-producto').value = combo.nombre + ' (combo)';
+      document.getElementById('v-precio').value = combo.precioVenta;
+    }
+  }
+  actualizarPromoPreview();
+}
+function autollenarVentaPorNombre(){
+  const nombre = document.getElementById('v-producto').value.trim().toLowerCase();
+  const item = state.inventario.find(p=>p.producto.toLowerCase()===nombre);
+  if(item){
+    document.getElementById('v-codigo').value = item.codigo;
+    if(item.precioVenta) document.getElementById('v-precio').value = item.precioVenta;
+  } else {
+    const combo = state.combos.find(c=>c.nombre.toLowerCase()===nombre && c.activo);
+    if(combo){
+      document.getElementById('v-codigo').value = combo.codigo;
+      document.getElementById('v-precio').value = combo.precioVenta;
+    }
+  }
+  actualizarPromoPreview();
+}
+function autollenarCompra(){
+  const codigo = document.getElementById('c-codigo').value.trim().toUpperCase();
+  const item = state.inventario.find(p=>p.codigo===codigo);
+  document.getElementById('c-producto').value = item ? item.producto : '';
+}
+function autollenarCompraPorNombre(){
+  const nombre = document.getElementById('c-producto').value.trim().toLowerCase();
+  const item = state.inventario.find(p=>p.producto.toLowerCase()===nombre);
+  if(item) document.getElementById('c-codigo').value = item.codigo;
+}
+
+let modalConfirmCallback = null;
+function openModal(html){
+  document.getElementById('modal-body').innerHTML = html;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+function closeModal(){
+  document.getElementById('modal-overlay').classList.remove('show');
+  modalConfirmCallback = null;
+}
+function mostrarAlerta(mensaje){
+  openModal(`<p style="font-size:13px;white-space:pre-line;">${mensaje}</p><div class="row"><button onclick="closeModal()">Cerrar</button></div>`);
+}
+function confirmarAccion(mensaje, callback){
+  modalConfirmCallback = callback;
+  openModal(`<p style="font-size:13px;">${mensaje}</p><div class="row"><button class="secondary" onclick="closeModal()">Cancelar</button><button onclick="ejecutarConfirm()" style="background:var(--rust);">Confirmar</button></div>`);
+}
+function ejecutarConfirm(){
+  const cb = modalConfirmCallback;
+  document.getElementById('modal-overlay').classList.remove('show');
+  modalConfirmCallback = null;
+  if(cb) cb();
+}
+
+function onPromoAlcanceChange(){
+  document.getElementById('p-productos-wrap').style.display = document.getElementById('p-alcance').value==='productos' ? 'block' : 'none';
+}
+function onPromoTipoChange(){
+  const tipo = document.getElementById('p-tipo').value;
+  document.getElementById('p-campo-pct').style.display = tipo==='pct' ? 'flex' : 'none';
+  document.getElementById('p-campo-monto').style.display = tipo==='monto' ? 'flex' : 'none';
+  document.getElementById('p-campo-cantidad').style.display = tipo==='cantidad' ? 'block' : 'none';
+}
+function onPromoFechaChange(){
+  const con = document.getElementById('p-con-fecha').checked;
+  document.getElementById('p-fechas-wrap').style.display = con ? 'flex' : 'none';
+  document.getElementById('p-fecha-hint').style.display = con ? 'none' : 'block';
+}
+function crearPromocion(){
+  const nombre = document.getElementById('p-nombre').value.trim();
+  if(!nombre){ mostrarAlerta('Ponele un nombre a la promoción.'); return; }
+  const alcance = document.getElementById('p-alcance').value;
+  let productos = [];
+  if(alcance === 'productos'){
+    productos = Array.from(document.querySelectorAll('.p-producto-check:checked')).map(el=>el.value);
+    if(!productos.length){ mostrarAlerta('Seleccioná al menos un producto, o cambiá el alcance a "toda la tienda".'); return; }
+  }
+  const tipo = document.getElementById('p-tipo').value;
+  let promo = {id:Date.now(), nombre, alcance, productos, tipo, activo:true, fechaInicio:null, fechaFin:null};
+  if(document.getElementById('p-con-fecha').checked){
+    const fi = document.getElementById('p-fecha-inicio').value;
+    const ff = document.getElementById('p-fecha-fin').value;
+    if(!fi || !ff){ mostrarAlerta('Metele fecha de inicio y fin, o desmarcá la casilla para dejarla fija.'); return; }
+    if(ff < fi){ mostrarAlerta('La fecha de fin no puede ser antes que la de inicio.'); return; }
+    promo.fechaInicio = fi; promo.fechaFin = ff;
+  }
+  if(tipo === 'pct'){
+    const v = parseFloat(document.getElementById('p-valor-pct').value);
+    if(!v || v<=0){ mostrarAlerta('Metele un porcentaje válido.'); return; }
+    promo.valor = v;
+  } else if(tipo === 'monto'){
+    const v = parseFloat(document.getElementById('p-valor-monto').value);
+    if(!v || v<=0){ mostrarAlerta('Metele un monto válido.'); return; }
+    promo.valor = v;
+  } else if(tipo === 'cantidad'){
+    const tramos = [];
+    for(const n of [1,2,3]){
+      const cant = parseFloat(document.getElementById(`p-tramo${n}-cant`).value);
+      const precio = parseFloat(document.getElementById(`p-tramo${n}-precio`).value);
+      if(cant>0 && precio>0) tramos.push({minCantidad:cant, precio});
+    }
+    if(!tramos.length){ mostrarAlerta('Agregá al menos un tramo de cantidad con su precio.'); return; }
+    tramos.sort((a,b)=>a.minCantidad-b.minCantidad);
+    promo.tramos = tramos;
+  }
+  state.promociones.push(promo);
+  document.getElementById('p-nombre').value='';
+  document.getElementById('p-valor-pct').value=''; document.getElementById('p-valor-monto').value='';
+  document.getElementById('p-con-fecha').checked=false; onPromoFechaChange();
+  document.getElementById('p-fecha-inicio').value=''; document.getElementById('p-fecha-fin').value='';
+  [1,2,3].forEach(n=>{ document.getElementById(`p-tramo${n}-cant`).value=''; document.getElementById(`p-tramo${n}-precio`).value=''; });
+  guardar(); render();
+}
+function togglePromoActivo(id){
+  const p = state.promociones.find(x=>x.id===id);
+  if(p){ p.activo = !p.activo; guardar(); render(); actualizarPromoPreview(); }
+}
+function borrarPromocion(id){
+  confirmarAccion('¿Eliminar esta promoción?', ()=>{ state.promociones = state.promociones.filter(x=>x.id!==id); guardar(); render(); });
+}
+function promoAplicaA(promo, codigo){
+  if(!promo.activo) return false;
+  if(!(promo.alcance==='toda' || (codigo && promo.productos.includes(codigo)))) return false;
+  if(promo.fechaInicio && promo.fechaFin){
+    const hoy = new Date().toISOString().slice(0,10);
+    if(hoy < promo.fechaInicio || hoy > promo.fechaFin) return false;
+  }
+  return true;
+}
+function mejorPrecioPara(codigo, cantidad, precioBase){
+  let mejorTotal = cantidad * precioBase;
+  let mejorNombre = null;
+  state.promociones.filter(p=>promoAplicaA(p, codigo)).forEach(p=>{
+    let total = null;
+    if(p.tipo === 'pct') total = (cantidad*precioBase) * (1 - p.valor/100);
+    else if(p.tipo === 'monto') total = Math.max(0, (cantidad*precioBase) - p.valor);
+    else if(p.tipo === 'cantidad'){
+      const tramo = [...p.tramos].reverse().find(t=>cantidad >= t.minCantidad);
+      if(tramo) total = cantidad * tramo.precio;
+    }
+    if(total !== null && total < mejorTotal){ mejorTotal = total; mejorNombre = p.nombre; }
+  });
+  return {total: mejorTotal, promoNombre: mejorNombre};
+}
+function actualizarPromoPreview(){
+  const codigo = document.getElementById('v-codigo').value.trim().toUpperCase();
+  const cantidad = parseFloat(document.getElementById('v-cantidad').value) || 0;
+  const precio = parseFloat(document.getElementById('v-precio').value) || 0;
+  const el = document.getElementById('v-promo-preview');
+  if(!el) return;
+  if(!codigo || !cantidad || !precio){ el.textContent=''; return; }
+  const {total, promoNombre} = mejorPrecioPara(codigo, cantidad, precio);
+  if(promoNombre){
+    el.innerHTML = `${ICONO_TAG} Promoción aplicada: <strong>${promoNombre}</strong> — total con promoción: ${fmt(total)} (antes ${fmt(cantidad*precio)})`;
+  } else {
+    el.textContent = '';
+  }
+}
+
+
+function aplicarCodigoVendedor(totalActual){
+  const inputEl = document.getElementById('v-codigo-vendedor');
+  const ingresado = inputEl ? inputEl.value.trim().toUpperCase() : '';
+  if(!ingresado) return { total: totalActual, aplicado: false, ok: true };
+  const cv = state.codigoVendedor;
+  const mesActual = new Date().toISOString().slice(0,7);
+  if(cv.usos.mesActual !== mesActual){ cv.usos.mesActual = mesActual; cv.usos.cantidad = 0; }
+  if(!cv.activo || !cv.codigo || ingresado !== cv.codigo.toUpperCase()){
+    mostrarAlerta('Código de vendedor inválido o inactivo.');
+    return { total: totalActual, aplicado: false, ok: false };
+  }
+  if(cv.limiteMensual > 0 && cv.usos.cantidad >= cv.limiteMensual){
+    mostrarAlerta('Este código de vendedor ya alcanzó su límite de usos este mes.');
+    return { total: totalActual, aplicado: false, ok: false };
+  }
+  const descVend = cv.tipo === 'pct' ? totalActual * (cv.valor/100) : Math.min(cv.valor, totalActual);
+  cv.usos.cantidad++;
+  return { total: Math.max(0, totalActual - descVend), aplicado: true, ok: true };
+}
+
+let carritoActual = [];
+
+function stockDisponible(codigo){
+  const item = state.inventario.find(p=>p.codigo===codigo);
+  if(!item) return null;
+  const usadoEnCarrito = carritoActual.filter(it=>!it.esCombo && it.codigo===codigo).reduce((s,it)=>s+it.cantidad,0);
+  return item.stock - usadoEnCarrito;
+}
+function leerItemFormulario(){
+  const codigo = document.getElementById('v-codigo').value.trim().toUpperCase();
+  const producto = document.getElementById('v-producto').value.trim();
+  const cantidad = parseFloat(document.getElementById('v-cantidad').value) || 1;
+  const precio = parseFloat(document.getElementById('v-precio').value) || 0;
+  if(!producto || precio <= 0) return null;
+  const esCombo = state.combos.some(c=>c.codigo===codigo && c.activo);
+  const totalBruto = cantidad * precio;
+  if(esCombo){
+    const combo = state.combos.find(c=>c.codigo===codigo);
+    const componentesResueltos = combo.componentes.map(c=>({codigo:c.codigo, cantidad:c.cantidad}));
+    for(const comp of componentesResueltos){
+      const disp = stockDisponible(comp.codigo);
+      const necesita = comp.cantidad * cantidad;
+      if(disp !== null && disp < necesita){
+        const compItem = state.inventario.find(p=>p.codigo===comp.codigo);
+        mostrarAlerta(`No hay stock suficiente de "${compItem?compItem.producto:comp.codigo}" para este combo. Disponible: ${disp}, necesitás: ${necesita}.`);
+        return null;
+      }
+    }
+    return { codigo, producto, cantidad, precioUnit:precio, totalBruto, promoAplicada:null, descuentoMonto:0, total: totalBruto, esCombo:true, componentesResueltos };
+  }
+  const disp = stockDisponible(codigo);
+  if(disp !== null && disp < cantidad){
+    mostrarAlerta(`No hay stock suficiente de "${producto}". Disponible: ${disp}, estás pidiendo: ${cantidad}.`);
+    return null;
+  }
+  const {total: totalConPromo, promoNombre} = mejorPrecioPara(codigo, cantidad, precio);
+  const descuentoMonto = Math.max(0, totalBruto - totalConPromo);
+  return { codigo, producto, cantidad, precioUnit:precio, totalBruto, promoAplicada:promoNombre, descuentoMonto, total: totalConPromo, esCombo:false };
+}
+function limpiarCamposItem(){
+  ['v-codigo','v-producto'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('v-cantidad').value='';
+  document.getElementById('v-precio').value='';
+  document.getElementById('v-promo-preview').textContent='';
+}
+function agregarItemCarrito(){
+  const codigo = document.getElementById('v-codigo').value.trim().toUpperCase();
+  const combo = state.combos.find(c=>c.codigo===codigo && c.activo);
+  if(combo && combo.componentes.some(c=>c.tipo==='grupo')){
+    const producto = document.getElementById('v-producto').value.trim();
+    const precio = parseFloat(document.getElementById('v-precio').value) || 0;
+    if(!producto || precio<=0){ mostrarAlerta('Metele el precio antes de elegir variantes.'); return; }
+    abrirSeleccionVariantesCombo(combo);
+    return;
+  }
+  const item = leerItemFormulario();
+  if(!item){ mostrarAlerta('Metele producto y precio antes de agregar el ítem.'); return; }
+  carritoActual.push(item);
+  limpiarCamposItem();
+  renderCarrito();
+}
+function abrirSeleccionVariantesCombo(combo){
+  const cantidad = parseFloat(document.getElementById('v-cantidad').value) || 1;
+  const precio = parseFloat(document.getElementById('v-precio').value) || combo.precioVenta;
+  const fijos = combo.componentes.filter(c=>c.tipo!=='grupo');
+  const gruposComponentes = combo.componentes.filter(c=>c.tipo==='grupo');
+  const filasFijos = fijos.map(c=>{
+    const p = state.inventario.find(x=>x.codigo===c.codigo);
+    return `<p class="hint">${c.cantidad}x ${p?p.producto:c.codigo}</p>`;
+  }).join('');
+  const filasGrupos = gruposComponentes.map((c,i)=>{
+    const variantes = state.inventario.filter(p=>p.grupoNombre===c.grupoNombre);
+    return `<div class="field-group"><label>${c.grupoNombre} — elegí la variante (x${c.cantidad})</label><select id="csv-grupo-${i}">${variantes.map(v=>`<option value="${v.codigo}">${v.producto}</option>`).join('')}</select></div>`;
+  }).join('');
+  openModal(`
+    <h3>${combo.nombre} — elegí las variantes</h3>
+    ${filasFijos}
+    ${filasGrupos}
+    <p class="hint" id="csv-error" style="color:var(--rust);"></p>
+    <div class="row"><button class="secondary" onclick="closeModal()">Cancelar</button><button onclick="confirmarSeleccionVariantesCombo('${combo.codigo}', ${cantidad}, ${precio})">Agregar al carrito</button></div>
+  `);
+  window._comboGruposTemp = gruposComponentes;
+}
+function confirmarSeleccionVariantesCombo(codigoCombo, cantidad, precio){
+  const combo = state.combos.find(c=>c.codigo===codigoCombo);
+  const gruposComponentes = window._comboGruposTemp || [];
+  const err = document.getElementById('csv-error');
+  const componentesResueltos = [];
+  combo.componentes.filter(c=>c.tipo!=='grupo').forEach(c=>componentesResueltos.push({codigo:c.codigo, cantidad:c.cantidad}));
+  for(let i=0;i<gruposComponentes.length;i++){
+    const sel = document.getElementById(`csv-grupo-${i}`);
+    if(!sel || !sel.value){ err.textContent = 'Elegí una variante para cada grupo.'; return; }
+    componentesResueltos.push({codigo: sel.value, cantidad: gruposComponentes[i].cantidad});
+  }
+  for(const comp of componentesResueltos){
+    const disp = stockDisponible(comp.codigo);
+    const necesita = comp.cantidad * cantidad;
+    if(disp !== null && disp < necesita){
+      const compItem = state.inventario.find(p=>p.codigo===comp.codigo);
+      err.textContent = `No hay stock suficiente de "${compItem?compItem.producto:comp.codigo}". Disponible: ${disp}, necesitás: ${necesita}.`;
+      return;
+    }
+  }
+  const totalBruto = cantidad * precio;
+  carritoActual.push({codigo:combo.codigo, producto:combo.nombre, cantidad, precioUnit:precio, totalBruto, promoAplicada:null, descuentoMonto:0, total:totalBruto, esCombo:true, componentesResueltos});
+  limpiarCamposItem();
+  renderCarrito();
+  closeModal();
+}
+function quitarItemCarrito(idx){
+  carritoActual.splice(idx,1);
+  renderCarrito();
+}
+function renderCarrito(){
+  const el = document.getElementById('v-carrito');
+  if(!el) return;
+  if(!carritoActual.length){ el.innerHTML=''; return; }
+  const totalCarrito = carritoActual.reduce((s,it)=>s+it.total,0);
+  el.innerHTML = `<div class="card" style="background:var(--primary-soft);box-shadow:none;">` +
+    carritoActual.map((it,i)=>`<div class="row" style="justify-content:space-between;flex-wrap:nowrap;margin-bottom:6px;"><span style="font-size:13px;">${it.cantidad}x ${it.producto}${it.promoAplicada?' '+ICONO_TAG:''}</span><span style="display:flex;align-items:center;gap:6px;"><span class="num" style="font-size:13px;">${fmt(it.total)}</span><button class="mini" onclick="quitarItemCarrito(${i})">${ICONO_X}</button></span></div>`).join('') +
+    `<div class="row" style="justify-content:space-between;font-weight:700;margin:0;"><span>Total del carrito</span><span>${fmt(totalCarrito)}</span></div>
+    </div>`;
+}
+
+function finalizarVenta(){
+  const codigoPend = document.getElementById('v-codigo').value.trim().toUpperCase();
+  const comboPend = state.combos.find(c=>c.codigo===codigoPend && c.activo);
+  if(comboPend && comboPend.componentes.some(c=>c.tipo==='grupo')){
+    const producto = document.getElementById('v-producto').value.trim();
+    const precio = parseFloat(document.getElementById('v-precio').value) || 0;
+    if(!producto || precio<=0){ mostrarAlerta('Metele el precio antes de elegir variantes.'); return; }
+    abrirSeleccionVariantesCombo(comboPend);
+    return;
+  }
+  const pendiente = leerItemFormulario();
+  if(pendiente){ carritoActual.push(pendiente); limpiarCamposItem(); }
+  if(!carritoActual.length){ mostrarAlerta('Agregá al menos un producto a la venta.'); return; }
+  const cliente = document.getElementById('v-cliente').value.trim();
+  const metodoPago = document.getElementById('v-metodo-pago').value;
+  if(metodoPago === 'fiado' && !cliente){ mostrarAlerta('Para vender fiado necesitás anotar el nombre del cliente.'); return; }
+  const requiereEnvio = document.getElementById('v-requiere-envio').checked;
+  const envio = requiereEnvio ? {
+    direccion: document.getElementById('v-envio-direccion').value.trim(),
+    telefono: document.getElementById('v-envio-telefono').value.trim(),
+    transportista: document.getElementById('v-envio-transportista').value.trim(),
+    notas: document.getElementById('v-envio-notas').value.trim()
+  } : null;
+  if(requiereEnvio && !envio.direccion){ mostrarAlerta('Metele la dirección de envío, o desmarcá "se debe enviar".'); return; }
+
+  const totalBruto = carritoActual.reduce((s,it)=>s+it.totalBruto,0);
+  const totalConPromos = carritoActual.reduce((s,it)=>s+it.total,0);
+  const {total: totalFinal, aplicado: vendedorAplicado, ok} = aplicarCodigoVendedor(totalConPromos);
+  if(!ok) return;
+  const vendedorDescuentoMonto = Math.max(0, totalConPromos - totalFinal);
+  const descuentoMonto = Math.max(0, totalBruto - totalFinal);
+  const subtotal = totalFinal / (1 + state.config.tasa/100);
+  const impuesto = totalFinal - subtotal;
+
+  const ventaId = Date.now();
+  const venta = {id:ventaId, codigoVenta:'V-'+String(ventaId).slice(-6), fecha:new Date().toISOString().slice(0,10), items: carritoActual.map(it=>({...it})), cliente, metodoPago, estadoPago: metodoPago==='fiado' ? 'pendiente' : 'pagado', fechaPago: metodoPago==='fiado' ? null : new Date().toISOString().slice(0,10), registradoPor: {uid:currentUid, nombre:currentNombre||'—'}, totalBruto, vendedorAplicado, vendedorDescuentoMonto, descuentoMonto, subtotal, impuesto, total:totalFinal, historial:[], enviado:false, requiereEnvio, envio};
+  state.ventas.unshift(venta);
+  carritoActual.forEach(it=>{
+    if(it.esCombo){
+      (it.componentesResueltos||[]).forEach(comp=>{
+        const compItem = state.inventario.find(p=>p.codigo===comp.codigo);
+        if(compItem) compItem.stock = Math.max(0, compItem.stock - (comp.cantidad * it.cantidad));
+      });
+    } else {
+      const item = state.inventario.find(p=>p.codigo===it.codigo);
+      if(item) item.stock = Math.max(0, item.stock - it.cantidad);
+    }
+  });
+  carritoActual = [];
+  renderCarrito();
+  ['v-cliente','v-envio-direccion','v-envio-telefono','v-envio-transportista','v-envio-notas'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('v-metodo-pago').value = 'efectivo';
+  if(document.getElementById('v-codigo-vendedor')) document.getElementById('v-codigo-vendedor').value='';
+  document.getElementById('v-requiere-envio').checked=false;
+  toggleEnvioForm();
+  guardar(); render();
+  mostrarTicket(venta);
+}
+
+function mostrarTicketPorId(id){
+  const v = state.ventas.find(x=>x.id===id);
+  if(v) mostrarTicket(v);
+}
+function verEnvio(id){
+  const v = state.ventas.find(x=>x.id===id);
+  if(!v || !v.envio) return;
+  mostrarAlerta(`<strong>Envío</strong>\n\nDirección: ${v.envio.direccion}\n${v.envio.telefono?'Contacto: '+v.envio.telefono+'\n':''}${v.envio.transportista?'Transportista: '+v.envio.transportista+'\n':''}${v.envio.notas?'Notas: '+v.envio.notas:''}`);
+}
+function mostrarTicket(v){
+  const lineaDesc = v.descuentoMonto ? `<div class="tline"><span>Descuento${v.vendedorAplicado?' (código vendedor)':''}</span><span>-${fmt(v.descuentoMonto)}</span></div>` : '';
+  const lineasItems = v.items.map(it=>{
+    const linea = `<div class="tline"><span>${it.cantidad} x ${it.producto}${it.promoAplicada?' '+ICONO_TAG:''}</span><span>${fmt(it.totalBruto)}</span></div>`;
+    if(it.esCombo && it.componentesResueltos && it.componentesResueltos.length){
+      const detalle = it.componentesResueltos.map(comp=>{
+        const p = state.inventario.find(x=>x.codigo===comp.codigo);
+        return `<div class="tline" style="padding-left:14px;font-size:11px;color:var(--ink-faint);"><span>· ${comp.cantidad}x ${p?p.producto:comp.codigo}</span><span></span></div>`;
+      }).join('');
+      return linea + detalle;
+    }
+    return linea;
+  }).join('');
+  const nombrePago = {efectivo:'Efectivo',tarjeta:'Tarjeta',transferencia:'Transferencia',pagare:'Pagaré',fiado:'Fiado'}[v.metodoPago] || v.metodoPago;
+  const html = `
+    <div id="print-area">
+      <div class="ticket">
+        <div style="text-align:center;font-weight:700;margin-bottom:4px;">TICKET DE VENTA</div>
+        <div style="text-align:center;" class="hint">${v.codigoVenta} · ${v.fecha}</div>
+        <hr>
+        ${lineasItems}
+        ${v.cliente?`<div class="tline"><span>Cliente</span><span>${v.cliente}</span></div>`:''}
+        <hr>
+        <div class="tline"><span>Subtotal</span><span>${fmt(v.subtotal)}</span></div>
+        <div class="tline"><span>Impuesto</span><span>${fmt(v.impuesto)}</span></div>
+        ${lineaDesc}
+        <hr>
+        <div class="tline" style="font-weight:700;"><span>TOTAL</span><span>${fmt(v.total)}</span></div>
+        <div class="tline"><span>Pago</span><span>${nombrePago}${v.metodoPago==='fiado'&&v.estadoPago!=='pagado'?' (pendiente)':''}</span></div>
+        ${v.requiereEnvio ? `<hr><div class="hint">Envío a: ${v.envio.direccion}${v.envio.transportista?' — '+v.envio.transportista:''}</div>` : ''}
+      </div>
+    </div>
+    <div class="row"><button class="secondary" onclick="closeModal()">Cerrar</button><button onclick="window.print()">Imprimir</button></div>
+  `;
+  openModal(html);
+}
+
+function toggleEnviado(id){
+  const v = state.ventas.find(x=>x.id===id);
+  if(!v) return;
+  v.enviado = !v.enviado;
+  guardar(); render();
+}
+
+function editarVenta(id){
+  const v = state.ventas.find(x=>x.id===id);
+  if(!v) return;
+  const filasItems = v.items.map((it,i)=>`
+    <div class="row" style="align-items:center;">
+      <span style="flex:2;font-size:13px;">${it.producto}</span>
+      <input type="number" id="ev-cant-${i}" value="${it.cantidad}" min="1" style="flex:1;">
+      <input type="number" id="ev-precio-${i}" value="${it.precioUnit}" step="0.01" style="flex:1;">
+    </div>
+  `).join('');
+  openModal(`
+    <h3>Editar venta</h3>
+    <p class="hint">Cantidad y precio unitario por producto. Las promociones se recalculan solas.</p>
+    ${filasItems}
+    <div class="field-group"><label>Motivo de la modificación (obligatorio)</label><input type="text" id="ev-motivo" placeholder="Ej. error al digitar cantidad"></div>
+    <div class="row">
+      <button class="secondary" onclick="closeModal()">Cancelar</button>
+      <button onclick="guardarEdicionVenta(${id})">Guardar cambios</button>
+    </div>
+  `);
+}
+function ajustarStockPorItem(it, signo){
+  // signo: +1 devuelve stock, -1 lo descuenta
+  if(it.esCombo){
+    (it.componentesResueltos||[]).forEach(comp=>{
+      const compItem = state.inventario.find(p=>p.codigo===comp.codigo);
+      if(compItem) compItem.stock = Math.max(0, compItem.stock + signo*(comp.cantidad*it.cantidad));
+    });
+  } else {
+    const item = state.inventario.find(p=>p.codigo===it.codigo);
+    if(item) item.stock = Math.max(0, item.stock + signo*it.cantidad);
+  }
+}
+
+function guardarEdicionVenta(id){
+  const v = state.ventas.find(x=>x.id===id);
+  if(!v) return;
+  const motivo = document.getElementById('ev-motivo').value.trim();
+  if(!motivo){ mostrarAlerta('Necesitás indicar un motivo para modificar la venta.'); return; }
+  const anterior = v.items.map(it=>`${it.cantidad}x ${it.producto} a ${fmt(it.precioUnit)}`).join(', ');
+  // Devolver stock de los valores actuales antes de recalcular
+  v.items.forEach(it=>ajustarStockPorItem(it, 1));
+  for(let i=0;i<v.items.length;i++){
+    const nuevaCant = parseFloat(document.getElementById(`ev-cant-${i}`).value);
+    const nuevoPrecio = parseFloat(document.getElementById(`ev-precio-${i}`).value);
+    if(isNaN(nuevaCant) || nuevaCant<=0 || isNaN(nuevoPrecio) || nuevoPrecio<=0){ mostrarAlerta('Cantidad y precio deben ser válidos en todos los productos.'); return; }
+    const it = v.items[i];
+    it.cantidad = nuevaCant; it.precioUnit = nuevoPrecio;
+    it.totalBruto = nuevaCant * nuevoPrecio;
+    if(it.esCombo){
+      it.total = it.totalBruto; it.descuentoMonto = 0; it.promoAplicada = null;
+    } else {
+      const calc = mejorPrecioPara(it.codigo, nuevaCant, nuevoPrecio);
+      it.promoAplicada = calc.promoNombre;
+      it.total = calc.total;
+      it.descuentoMonto = Math.max(0, it.totalBruto - calc.total);
+    }
+  }
+  const nuevo = v.items.map(it=>`${it.cantidad}x ${it.producto} a ${fmt(it.precioUnit)}`).join(', ');
+  v.historial.push({fecha:new Date().toISOString().slice(0,10), anterior:{resumen:anterior}, nuevo:{resumen:nuevo}, motivo});
+  v.totalBruto = v.items.reduce((s,it)=>s+it.totalBruto,0);
+  const totalConPromos = v.items.reduce((s,it)=>s+it.total,0);
+  v.descuentoMonto = Math.max(0, v.totalBruto - totalConPromos) + (v.vendedorAplicado ? (v.descuentoMonto - Math.max(0, v.totalBruto - totalConPromos)) : 0);
+  v.total = v.vendedorAplicado ? v.total : totalConPromos;
+  if(!v.vendedorAplicado) v.total = totalConPromos;
+  v.subtotal = v.total / (1 + state.config.tasa/100);
+  v.impuesto = v.total - v.subtotal;
+  v.items.forEach(it=>ajustarStockPorItem(it, -1));
+  guardar(); render(); closeModal();
+}
+function verHistorial(id){
+  const v = state.ventas.find(x=>x.id===id);
+  if(!v || !v.historial.length) return;
+  const texto = v.historial.map(h=>`${h.fecha}:\nAntes: ${h.anterior.resumen}\nDespués: ${h.nuevo.resumen}\nMotivo: ${h.motivo}`).join('\n\n');
+  mostrarAlerta(`<strong>Historial de cambios</strong>\n\n${texto}`);
+}
+function borrarVenta(id){
+  confirmarAccion('¿Eliminar esta venta? El stock se devolverá al inventario.', ()=>{
+    const v = state.ventas.find(x=>x.id===id);
+    v.items.forEach(it=>ajustarStockPorItem(it, 1));
+    state.ventas = state.ventas.filter(x=>x.id!==id); guardar(); render();
+  });
+}
+
+let scannerStream = null;
+function abrirScanner(){
+  openModal(`
+    <h3>Escanear código</h3>
+    <video id="scanner-video" autoplay playsinline muted></video>
+    <canvas id="scanner-canvas" style="display:none;"></canvas>
+    <p class="hint" id="scanner-status">Apuntá la cámara al código QR del producto.</p>
+    <div class="row"><button class="secondary" onclick="cerrarScanner()">Cancelar</button></div>
+  `);
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
+    .then(stream=>{
+      scannerStream = stream;
+      const video = document.getElementById('scanner-video');
+      if(!video) return;
+      video.srcObject = stream;
+      video.play().catch(()=>{});
+      requestAnimationFrame(loopScanner);
+    })
+    .catch(()=>{
+      const st = document.getElementById('scanner-status');
+      if(st) st.textContent = 'No se pudo acceder a la cámara. Revisá los permisos del navegador.';
+    });
+}
+function loopScanner(){
+  const video = document.getElementById('scanner-video');
+  const canvas = document.getElementById('scanner-canvas');
+  if(!video || !canvas || !scannerStream) return;
+  if(typeof jsQR === 'undefined'){
+    const st = document.getElementById('scanner-status');
+    if(st) st.textContent = 'No se pudo cargar el lector de códigos. Revisá tu conexión a internet y volvé a intentar.';
+    return;
+  }
+  if(video.readyState === video.HAVE_ENOUGH_DATA){
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height);
+    if(code && code.data){
+      let codigo = code.data.trim();
+      try{ const obj = JSON.parse(code.data); if(obj && obj.codigo) codigo = obj.codigo; }catch(e){}
+      document.getElementById('v-codigo').value = codigo.toUpperCase();
+      cerrarScanner();
+      autollenarVenta();
+      return;
+    }
+  }
+  requestAnimationFrame(loopScanner);
+}
+function cerrarScanner(){
+  if(scannerStream){ scannerStream.getTracks().forEach(t=>t.stop()); scannerStream = null; }
+  closeModal();
+}
+
+function verQR(codigo){
+  let etiqueta;
+  const item = state.inventario.find(p=>p.codigo===codigo);
+  if(item){
+    etiqueta = `${item.producto}${item.precioVenta?` · ${fmt(item.precioVenta)}`:''} · Stock actual: ${item.stock} (no va en el QR)`;
+  } else {
+    const combo = state.combos.find(c=>c.codigo===codigo);
+    if(!combo) return;
+    etiqueta = `${combo.nombre} (combo) · ${fmt(combo.precioVenta)}`;
+  }
+  openModal(`
+    <h3>Código QR — ${codigo}</h3>
+    <p class="hint">${etiqueta}</p>
+    <div id="qr-container" style="display:flex;justify-content:center;padding:10px;"></div>
+    <div class="row"><button class="secondary" onclick="closeModal()">Cerrar</button><button onclick="descargarQR('${codigo}')">Descargar</button></div>
+  `);
+  const cont = document.getElementById('qr-container');
+  cont.innerHTML = '';
+  new QRCode(cont, {text: codigo, width:200, height:200});
+}
+function descargarQR(codigo){
+  const el = document.querySelector('#qr-container canvas') || document.querySelector('#qr-container img');
+  if(!el) return;
+  const url = el.tagName === 'CANVAS' ? el.toDataURL('image/png') : el.src;
+  const a = document.createElement('a');
+  a.href = url; a.download = `QR-${codigo}.png`; a.click();
+}
+
+function exportarExcel(){
+  const wb = XLSX.utils.book_new();
+  const filasVentas = [];
+  state.ventas.forEach(v=>{
+    v.items.forEach(it=>{
+      filasVentas.push({
+        CodigoVenta:v.codigoVenta, VentaId: v.id, Fecha:v.fecha, Codigo:it.codigo, Producto:it.producto, Cliente:v.cliente, Cantidad:it.cantidad,
+        PrecioUnitario:Number(it.precioUnit.toFixed(2)), Promocion:it.promoAplicada||'',
+        MetodoPago:v.metodoPago, EstadoPago:v.estadoPago, RegistradoPor:v.registradoPor.nombre,
+        TotalVenta:Number(v.total.toFixed(2)), Enviado: v.enviado ? 'Sí' : 'No', Editado: v.historial.length ? 'Sí' : 'No'
+      });
+    });
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filasVentas), 'Ventas');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(state.compras.map(c=>({
+    Fecha:c.fecha, Codigo:c.codigo, Producto:c.producto, Proveedor:c.proveedor, Cantidad:c.cantidad,
+    CostoUnitario:Number(c.costo.toFixed(2)), Total:Number(c.total.toFixed(2))
+  }))), 'Compras');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(state.gastos.map(g=>({
+    Fecha:g.fecha, Concepto:g.concepto, Categoria:g.categoria, Monto:Number(g.monto.toFixed(2))
+  }))), 'Gastos');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(state.inventario.map(p=>({
+    Codigo:p.codigo, Producto:p.producto, Stock:p.stock, PuntoReorden:p.reorden, PrecioVenta:p.precioVenta||''
+  }))), 'Inventario');
+  const fecha = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `mis-cuentas-${fecha}.xlsx`);
+}
+
+function agregarCompra(){
+  const codigo = document.getElementById('c-codigo').value.trim().toUpperCase();
+  const item = state.inventario.find(p=>p.codigo===codigo);
+  if(!item){ mostrarAlerta('Ese código o nombre no existe en tu inventario. Agregalo primero en la pestaña Inventario.'); return; }
+  const cantidad = parseFloat(document.getElementById('c-cantidad').value) || 0;
+  const costo = parseFloat(document.getElementById('c-costo').value) || 0;
+  const proveedor = document.getElementById('c-proveedor').value.trim();
+  if(cantidad<=0 || costo<=0) return;
+  state.compras.unshift({id:Date.now(), fecha:new Date().toISOString().slice(0,10), codigo, producto:item.producto, cantidad, costo, total:cantidad*costo, proveedor});
+  item.stock += cantidad;
+  ['c-codigo','c-producto','c-proveedor'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('c-cantidad').value='1';
+  document.getElementById('c-costo').value='';
+  guardar(); render();
+}
+function borrarCompra(id){
+  confirmarAccion('¿Eliminar esta compra? Se restará del stock.', ()=>{
+    const c = state.compras.find(x=>x.id===id);
+    const item = state.inventario.find(p=>p.codigo===c.codigo);
+    if(item) item.stock = Math.max(0, item.stock - c.cantidad);
+    state.compras = state.compras.filter(x=>x.id!==id); guardar(); render();
+  });
+}
+
+function agregarGasto(){
+  const concepto = document.getElementById('g-concepto').value.trim();
+  const categoria = document.getElementById('g-categoria').value;
+  const monto = parseFloat(document.getElementById('g-monto').value) || 0;
+  if(!concepto || monto <= 0) return;
+  state.gastos.unshift({id:Date.now(), fecha:new Date().toISOString().slice(0,10), concepto, categoria, monto});
+  document.getElementById('g-concepto').value=''; document.getElementById('g-monto').value='';
+  guardar(); render();
+}
+function borrarGasto(id){
+  confirmarAccion('¿Eliminar este gasto?', ()=>{ state.gastos = state.gastos.filter(g=>g.id!==id); guardar(); render(); });
+}
+
+async function agregarProducto(){
+  const producto = document.getElementById('i-producto').value.trim().toUpperCase();
+  const categoria = document.getElementById('i-categoria').value.trim();
+  const stock = parseFloat(document.getElementById('i-stock').value) || 0;
+  const reorden = parseFloat(document.getElementById('i-reorden').value) || 0;
+  const precioVenta = parseFloat(document.getElementById('i-precio').value) || 0;
+  const qr = document.getElementById('i-qr').checked;
+  if(!producto) return;
+  if(state.inventario.some(p=>p.producto.toUpperCase()===producto)){
+    mostrarAlerta(`Ya existe un producto llamado "${producto}" en tu inventario. Usá un nombre distinto, o editá el existente.`);
+    return;
+  }
+  const datosProducto = { producto, categoria, stock, reorden, precioVenta, qr };
+  if(currentCadenaId){
+    const encontrado = await buscarProductoEnHermanas(producto);
+    if(encontrado){
+      preguntarUsarCodigoExistente(encontrado, datosProducto);
+      return;
+    }
+  }
+  finalizarAgregarProducto(datosProducto, generarCodigo(producto, categoria));
+}
+async function buscarProductoEnHermanas(nombreProducto){
+  if(!currentCadenaId) return null;
+  const cadena = await window.fb.leerCadena(currentCadenaId);
+  if(!cadena) return null;
+  const otras = cadena.tiendaIds.filter(id=>id!==currentTiendaId);
+  for(const id of otras){
+    const t = await window.fb.leerTienda(id);
+    const raw = await window.fb.leerDatosTienda(id);
+    if(raw){
+      try{
+        const d = JSON.parse(raw);
+        const match = (d.inventario||[]).find(p=>p.producto.toLowerCase()===nombreProducto.toLowerCase());
+        if(match) return { tiendaNombre: t?t.nombre:id, codigo: match.codigo };
+      }catch(e){}
+    }
+  }
+  return null;
+}
+function preguntarUsarCodigoExistente(encontrado, datosProducto){
+  window._datosProductoPendiente = datosProducto;
+  openModal(`
+    <h3>Este producto ya existe en tu cadena</h3>
+    <p class="hint">"${datosProducto.producto}" ya está en ${encontrado.tiendaNombre} con el código <span class="code">${encontrado.codigo}</span>. Usar el mismo código te deja compartir el mismo QR entre sucursales.</p>
+    <div class="row">
+      <button class="secondary" onclick="resolverCodigoProducto(null)">Generar código nuevo</button>
+      <button onclick="resolverCodigoProducto('${encontrado.codigo}')">Usar ${encontrado.codigo}</button>
+    </div>
+  `);
+}
+function resolverCodigoProducto(codigoElegido){
+  const datosProducto = window._datosProductoPendiente;
+  window._datosProductoPendiente = null;
+  closeModal();
+  const codigo = codigoElegido || generarCodigo(datosProducto.producto, datosProducto.categoria);
+  finalizarAgregarProducto(datosProducto, codigo);
+}
+function finalizarAgregarProducto(datosProducto, codigo){
+  const nuevo = { id:Date.now(), codigo, producto:datosProducto.producto, categoria:datosProducto.categoria, grupoNombre:null, stock:datosProducto.stock, reorden:datosProducto.reorden, precioVenta:datosProducto.precioVenta, qr:datosProducto.qr };
+  state.inventario.unshift(nuevo);
+  document.getElementById('i-producto').value=''; document.getElementById('i-categoria').value=''; document.getElementById('i-stock').value='';
+  document.getElementById('i-reorden').value=''; document.getElementById('i-precio').value='';
+  document.getElementById('i-qr').checked = false;
+  guardar(); render();
+  if(nuevo.stock > 0) abrirPreguntaCompraInicial(nuevo);
+}
+function abrirPreguntaCompraInicial(producto){
+  openModal(`
+    <h3>¿Ya compraste este stock?</h3>
+    <p class="hint">Registralo como compra inicial para que quede reflejado cuánto invertiste en "${producto.producto}".</p>
+    <div class="field-group"><label>Costo unitario</label><input type="number" id="ci-costo" step="0.01" placeholder="Ej. 5.00"></div>
+    <div class="row">
+      <button class="secondary" onclick="closeModal()">No, omitir</button>
+      <button onclick="confirmarCompraInicial('${producto.codigo}', ${producto.stock})">Registrar compra</button>
+    </div>
+  `);
+}
+function confirmarCompraInicial(codigo, cantidad){
+  const costo = parseFloat(document.getElementById('ci-costo').value) || 0;
+  if(costo<=0){ mostrarAlerta('Metele un costo unitario válido.'); return; }
+  const item = state.inventario.find(p=>p.codigo===codigo);
+  state.compras.unshift({id:Date.now(), fecha:new Date().toISOString().slice(0,10), codigo, producto:item?item.producto:codigo, cantidad, costo, total:cantidad*costo, proveedor:'Stock inicial'});
+  guardar(); render(); closeModal();
+}
+function editarProducto(id){
+  const p = state.inventario.find(x=>x.id===id);
+  if(!p) return;
+  openModal(`
+    <h3>Editar producto — ${p.codigo}</h3>
+    <div class="field-group"><label>Nombre</label><input type="text" id="ep-nombre" value="${p.producto}" style="text-transform:uppercase;"></div>
+    <div class="field-group"><label>Categoría</label><input list="categorias-inv" type="text" id="ep-categoria" value="${p.categoria||''}"></div>
+    <div class="field-group"><label>Stock</label><input type="number" id="ep-stock" value="${p.stock}" min="0"></div>
+    <div class="field-group"><label>Punto de reorden</label><input type="number" id="ep-reorden" value="${p.reorden}" min="0"></div>
+    <div class="field-group"><label>Precio de venta (con impuesto)</label><div class="row"><input type="number" id="ep-precio" value="${p.precioVenta||0}" step="0.01"><button class="secondary" type="button" onclick="abrirCalculadoraCostos('ep-precio')">${ICONO_CALC}</button></div>
+      <select id="ep-usar-calculo" onchange="if(this.value) usarCalculoEnCampo(parseInt(this.value),'ep-precio')">
+        <option value="">O usar un cálculo guardado...</option>
+        ${state.calculosCosto.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+      </select>
+    </div>
+    <div class="row">
+      <button class="secondary" onclick="closeModal()">Cancelar</button>
+      <button onclick="guardarEdicionProducto(${id})">Guardar cambios</button>
+    </div>
+  `);
+}
+function guardarEdicionProducto(id){
+  const p = state.inventario.find(x=>x.id===id);
+  if(!p) return;
+  const nombre = document.getElementById('ep-nombre').value.trim().toUpperCase();
+  const categoria = document.getElementById('ep-categoria').value.trim();
+  const stock = parseFloat(document.getElementById('ep-stock').value) || 0;
+  const reorden = parseFloat(document.getElementById('ep-reorden').value) || 0;
+  const precioVenta = parseFloat(document.getElementById('ep-precio').value) || 0;
+  if(!nombre){ mostrarAlerta('El nombre no puede quedar vacío.'); return; }
+  if(state.inventario.some(x=>x.id!==id && x.producto.toUpperCase()===nombre)){
+    mostrarAlerta(`Ya existe otro producto llamado "${nombre}". Usá un nombre distinto.`);
+    return;
+  }
+  p.producto = nombre; p.categoria = categoria; p.stock = stock; p.reorden = reorden; p.precioVenta = precioVenta;
+  guardar(); render(); closeModal();
+}
+function borrarProducto(id){
+  confirmarAccion('¿Eliminar este producto del inventario?', ()=>{ state.inventario = state.inventario.filter(p=>p.id!==id); guardar(); render(); });
+}
+
+// ---- Variantes agrupadas (talla / color) ----
+async function abrirCopiarProductos(){
+  const otras = currentTiendas.filter(id=>id!==currentTiendaId);
+  if(!otras.length){ mostrarAlerta('Necesitás al menos otra tienda para copiar productos.'); return; }
+  const nombres = await Promise.all(otras.map(async id=>({ id, t: await window.fb.leerTienda(id) })));
+  openModal(`
+    <h3>Copiar productos de otra tienda</h3>
+    <p class="hint">El stock arranca en 0 en esta tienda — después lo abastecés con Compras.</p>
+    <div class="field-group">
+      <label>Desde qué tienda</label>
+      <select id="cp-origen" onchange="cargarListaCopiarProductos()">
+        <option value="">Elegí una tienda</option>
+        ${nombres.map(({id,t})=>`<option value="${id}">${t?t.nombre:id}</option>`).join('')}
+      </select>
+    </div>
+    <div id="cp-lista"></div>
+    <p class="hint" id="cp-error" style="color:var(--rust);"></p>
+    <div class="row">
+      <button class="secondary" onclick="closeModal()">Cancelar</button>
+      <button onclick="confirmarCopiarProductos()">Copiar seleccionados</button>
+    </div>
+  `);
+}
+async function cargarListaCopiarProductos(){
+  const origenId = document.getElementById('cp-origen').value;
+  const el = document.getElementById('cp-lista');
+  if(!origenId){ el.innerHTML=''; window._productosOrigenTemp = []; return; }
+  el.innerHTML = '<p class="hint">Cargando...</p>';
+  const raw = await window.fb.leerDatosTienda(origenId);
+  let productos = [];
+  if(raw){ try{ const d = JSON.parse(raw); productos = d.inventario||[]; }catch(e){} }
+  window._productosOrigenTemp = productos;
+  if(!productos.length){ el.innerHTML = '<p class="empty">Esa tienda no tiene productos.</p>'; return; }
+  el.innerHTML = `<div style="max-height:220px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:8px;">${productos.map(p=>
+    `<label class="check-line"><input type="checkbox" class="cp-prod-check" value="${p.codigo}"> <span class="code">${p.codigo}</span> ${p.producto}</label>`
+  ).join('')}</div>`;
+}
+function confirmarCopiarProductos(){
+  const seleccionados = Array.from(document.querySelectorAll('.cp-prod-check:checked')).map(el=>el.value);
+  const err = document.getElementById('cp-error');
+  if(!seleccionados.length){ err.textContent = 'Marcá al menos un producto.'; return; }
+  const productos = window._productosOrigenTemp || [];
+  let copiados = 0, omitidos = 0;
+  seleccionados.forEach(codigo=>{
+    const p = productos.find(x=>x.codigo===codigo);
+    if(!p) return;
+    if(state.inventario.some(x=>x.codigo===p.codigo || x.producto.toUpperCase()===p.producto.toUpperCase())){ omitidos++; return; }
+    state.inventario.push({id:Date.now()+copiados, codigo:p.codigo, producto:p.producto, categoria:p.categoria||'', grupoNombre:p.grupoNombre||null, stock:0, reorden:p.reorden||3, precioVenta:p.precioVenta||0, qr:p.qr||false});
+    copiados++;
+  });
+  closeModal();
+  guardar(); render();
+  mostrarAlerta(`Se copiaron ${copiados} producto(s) con stock en 0.${omitidos?` ${omitidos} se omitieron por ya existir.`:''}`);
+}
+
+function abrirCrearVariantes(){
+  openModal(`
+    <h3>Crear producto con variantes</h3>
+    <p class="hint">Se crea un producto por cada combinación — no hace falta escribirlos uno por uno.</p>
+    <div class="field-group"><label>Nombre base</label><input type="text" id="cv-nombre" placeholder="Ej. Camisa Azteca" style="text-transform:uppercase;"></div>
+    <div class="field-group"><label>Categoría</label><input list="categorias-inv" type="text" id="cv-categoria" placeholder="Ej. Ropa"></div>
+    <div class="field-group"><label>Tallas (separadas por coma)</label><input type="text" id="cv-tallas" placeholder="Ej. S, M, L, XL"></div>
+    <div class="field-group"><label>Colores (opcional, separados por coma)</label><input type="text" id="cv-colores" placeholder="Ej. Rojo, Azul"></div>
+    <div class="field-group">
+      <label>Precio de venta (con impuesto)</label>
+      <div class="row"><input type="number" id="cv-precio" step="0.01"><button class="secondary" type="button" onclick="abrirCalculadoraCostos('cv-precio')">${ICONO_CALC} Calculadora</button></div>
+      <select id="cv-usar-calculo" onchange="if(this.value) usarCalculoEnCampo(parseInt(this.value),'cv-precio')">
+        <option value="">O usar un cálculo guardado...</option>
+        ${state.calculosCosto.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field-group"><label>Stock inicial por variante</label><input type="number" id="cv-stock" placeholder="Ej. 0" min="0"></div>
+    <div class="row"><label class="check-line"><input type="checkbox" id="cv-qr"> Generar código QR para cada variante</label></div>
+    <p class="hint" id="cv-error" style="color:var(--rust);"></p>
+    <div class="row">
+      <button class="secondary" onclick="closeModal()">Cancelar</button>
+      <button onclick="confirmarCrearVariantes()">Crear variantes</button>
+    </div>
+  `);
+}
+function confirmarCrearVariantes(){
+  const nombre = document.getElementById('cv-nombre').value.trim().toUpperCase();
+  const categoria = document.getElementById('cv-categoria').value.trim();
+  const tallas = document.getElementById('cv-tallas').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const colores = document.getElementById('cv-colores').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const precioVenta = parseFloat(document.getElementById('cv-precio').value) || 0;
+  const stock = parseFloat(document.getElementById('cv-stock').value) || 0;
+  const qr = document.getElementById('cv-qr').checked;
+  const err = document.getElementById('cv-error');
+  if(!nombre || !tallas.length){ err.textContent = 'Metele al menos el nombre base y una talla.'; return; }
+  const combinaciones = colores.length ? tallas.flatMap(t=>colores.map(c=>({t,c}))) : tallas.map(t=>({t,c:null}));
+  let creados = 0;
+  const codigosCreados = [];
+  combinaciones.forEach(({t,c})=>{
+    const productoNombre = `${nombre} (${t}${c?', '+c:''})`;
+    if(state.inventario.some(p=>p.producto.toUpperCase()===productoNombre.toUpperCase())) return;
+    const codigo = generarCodigo(nombre, categoria);
+    state.inventario.push({id:Date.now()+creados, codigo, producto:productoNombre, categoria, grupoNombre:nombre, stock, reorden:3, precioVenta, qr});
+    codigosCreados.push(codigo);
+    creados++;
+  });
+  closeModal();
+  guardar(); render();
+  if(stock > 0 && codigosCreados.length){
+    abrirPreguntaCompraInicialLote(nombre, codigosCreados, stock);
+  } else {
+    mostrarAlerta(`Se crearon ${creados} variante(s) de "${nombre}".`);
+  }
+}
+function abrirPreguntaCompraInicialLote(nombreGrupo, codigos, stockPorVariante){
+  window._codigosLotePendiente = codigos;
+  openModal(`
+    <h3>¿Ya compraste este stock?</h3>
+    <p class="hint">Se creó "${nombreGrupo}" con ${codigos.length} variante(s), ${stockPorVariante} unidades cada una. Registralo como compra inicial si ya lo pagaste.</p>
+    <div class="field-group"><label>Costo unitario (igual para todas las variantes)</label><input type="number" id="ci-costo-lote" step="0.01" placeholder="Ej. 5.00"></div>
+    <div class="row">
+      <button class="secondary" onclick="closeModal()">No, omitir</button>
+      <button onclick="confirmarCompraInicialLote(${stockPorVariante})">Registrar compra</button>
+    </div>
+  `);
+}
+function confirmarCompraInicialLote(cantidad){
+  const costo = parseFloat(document.getElementById('ci-costo-lote').value) || 0;
+  if(costo<=0){ mostrarAlerta('Metele un costo unitario válido.'); return; }
+  const codigos = window._codigosLotePendiente || [];
+  codigos.forEach(codigo=>{
+    const item = state.inventario.find(p=>p.codigo===codigo);
+    state.compras.unshift({id:Date.now()+Math.random(), fecha:new Date().toISOString().slice(0,10), codigo, producto:item?item.producto:codigo, cantidad, costo, total:cantidad*costo, proveedor:'Stock inicial'});
+  });
+  window._codigosLotePendiente = null;
+  guardar(); render(); closeModal();
+}
+
+let gruposColapsados = new Set();
+function toggleGrupoColapsado(grupoNombre){
+  if(gruposColapsados.has(grupoNombre)) gruposColapsados.delete(grupoNombre);
+  else gruposColapsados.add(grupoNombre);
+  render();
+}
+function editarGrupoVariantes(grupoNombre){
+  const variantes = state.inventario.filter(p=>p.grupoNombre===grupoNombre);
+  if(!variantes.length) return;
+  const base = variantes[0];
+  openModal(`
+    <h3>Editar grupo — ${grupoNombre}</h3>
+    <p class="hint">Estos cambios se aplican a las ${variantes.length} variantes del grupo. El stock de cada una no se toca acá — editalo individual si hace falta.</p>
+    <div class="field-group"><label>Categoría</label><input list="categorias-inv" type="text" id="eg-categoria" value="${base.categoria||''}"></div>
+    <div class="field-group"><label>Precio de venta (con impuesto)</label><input type="number" id="eg-precio" value="${base.precioVenta||0}" step="0.01"></div>
+    <div class="field-group"><label>Punto de reorden</label><input type="number" id="eg-reorden" value="${base.reorden||0}" min="0"></div>
+    <div class="row">
+      <button class="secondary" onclick="closeModal()">Cancelar</button>
+      <button onclick="guardarEdicionGrupo('${grupoNombre.replace(/'/g,"\\'")}')">Guardar en las ${variantes.length} variantes</button>
+    </div>
+  `);
+}
+function guardarEdicionGrupo(grupoNombre){
+  const categoria = document.getElementById('eg-categoria').value.trim();
+  const precioVenta = parseFloat(document.getElementById('eg-precio').value) || 0;
+  const reorden = parseFloat(document.getElementById('eg-reorden').value) || 0;
+  const variantes = state.inventario.filter(p=>p.grupoNombre===grupoNombre);
+  variantes.forEach(p=>{
+    p.categoria = categoria; p.precioVenta = precioVenta; p.reorden = reorden;
+  });
+  guardar(); render(); closeModal();
+}
+function borrarGrupoVariantes(grupoNombre){
+  const cantidad = state.inventario.filter(p=>p.grupoNombre===grupoNombre).length;
+  confirmarAccion(`¿Eliminar todo el grupo "${grupoNombre}"? Se borrarán sus ${cantidad} variantes.`, ()=>{
+    state.inventario = state.inventario.filter(p=>p.grupoNombre!==grupoNombre);
+    guardar(); render();
+  });
+}
+
+// ---- Combos ----
+let comboSlots = [];
+let comboEditandoId = null;
+function abrirCrearCombo(idExistente){
+  if(!state.inventario.length){ mostrarAlerta('Agregá productos al inventario antes de armar un combo.'); return; }
+  comboEditandoId = idExistente || null;
+  const existente = idExistente ? state.combos.find(c=>c.id===idExistente) : null;
+  comboSlots = existente ? existente.componentes.map(c=>({...c})) : [{tipo:'',codigo:'',grupoNombre:'',cantidad:''},{tipo:'',codigo:'',grupoNombre:'',cantidad:''},{tipo:'',codigo:'',grupoNombre:'',cantidad:''}];
+  openModal(`
+    <h3>${existente?'Editar combo':'Crear combo'}</h3>
+    <div class="field-group"><label>Nombre del combo</label><input type="text" id="co-nombre" placeholder="Ej. Combo Hamburguesa" style="text-transform:uppercase;" value="${existente?existente.nombre:''}"></div>
+    <div class="field-group">
+      <label>Precio de venta del combo (con impuesto)</label>
+      <div class="row"><input type="number" id="co-precio" step="0.01" value="${existente?existente.precioVenta:''}"><button class="secondary" type="button" onclick="abrirCalculadoraCostos('co-precio')">${ICONO_CALC} Calculadora</button></div>
+      <select id="co-usar-calculo" onchange="if(this.value) usarCalculoEnCampo(parseInt(this.value),'co-precio')">
+        <option value="">O usar un cálculo guardado...</option>
+        ${state.calculosCosto.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+      </select>
+    </div>
+    <p class="hint">Componentes — "Producto fijo" es siempre lo mismo (ej. la hamburguesa). "Grupo de variantes" deja que el vendedor elija la talla/color al momento de vender.</p>
+    <div id="co-componentes"></div>
+    <div class="row"><button class="mini" type="button" onclick="agregarSlotCombo()">${ICONO_MAS} Agregar componente</button></div>
+    <div class="row"><label class="check-line"><input type="checkbox" id="co-qr" ${existente&&existente.qr?'checked':''}> Generar código QR para el combo</label></div>
+    <p class="hint" id="co-error" style="color:var(--rust);"></p>
+    <div class="row">
+      <button class="secondary" onclick="closeModal()">Cancelar</button>
+      <button onclick="confirmarCrearCombo()">${existente?'Guardar cambios':'Crear combo'}</button>
+    </div>
+  `);
+  renderSlotsCombo();
+}
+function renderSlotsCombo(){
+  const el = document.getElementById('co-componentes');
+  if(!el) return;
+  const opciones = state.inventario.map(p=>`<option value="${p.codigo}">${p.producto}</option>`).join('');
+  const grupos = [...new Set(state.inventario.map(p=>p.grupoNombre).filter(Boolean))];
+  const opcionesGrupos = grupos.map(g=>`<option value="${g}">${g}</option>`).join('');
+  el.innerHTML = comboSlots.map((s,n)=>`<div class="row">
+    <select onchange="actualizarSlotCombo(${n},'tipo',this.value)" style="max-width:150px;">
+      <option value="" ${!s.tipo?'selected':''}>— sin usar —</option>
+      <option value="producto" ${s.tipo==='producto'?'selected':''}>Producto fijo</option>
+      <option value="grupo" ${s.tipo==='grupo'?'selected':''}>Grupo de variantes</option>
+    </select>
+    <select onchange="actualizarSlotCombo(${n},'codigo',this.value)" style="display:${s.tipo==='producto'?'flex':'none'};"><option value="">Elegí producto</option>${state.inventario.map(p=>`<option value="${p.codigo}" ${s.codigo===p.codigo?'selected':''}>${p.producto}</option>`).join('')}</select>
+    <select onchange="actualizarSlotCombo(${n},'grupoNombre',this.value)" style="display:${s.tipo==='grupo'?'flex':'none'};"><option value="">Elegí grupo</option>${grupos.map(g=>`<option value="${g}" ${s.grupoNombre===g?'selected':''}>${g}</option>`).join('')}</select>
+    <input type="number" placeholder="Cant. (ej. 1)" min="1" value="${s.cantidad}" style="max-width:90px;" oninput="actualizarSlotCombo(${n},'cantidad',this.value)">
+    <button class="mini" type="button" onclick="quitarSlotCombo(${n})">${ICONO_X}</button>
+  </div>`).join('');
+}
+function actualizarSlotCombo(n, campo, valor){
+  comboSlots[n][campo] = campo==='cantidad' ? (valor==='' ? '' : (parseFloat(valor)||1)) : valor;
+  if(campo==='tipo') renderSlotsCombo();
+}
+function agregarSlotCombo(){
+  comboSlots.push({tipo:'',codigo:'',grupoNombre:'',cantidad:''});
+  renderSlotsCombo();
+}
+function quitarSlotCombo(n){
+  comboSlots.splice(n,1);
+  renderSlotsCombo();
+}
+function confirmarCrearCombo(){
+  const nombre = document.getElementById('co-nombre').value.trim().toUpperCase();
+  const precioVenta = parseFloat(document.getElementById('co-precio').value) || 0;
+  const qr = document.getElementById('co-qr').checked;
+  const err = document.getElementById('co-error');
+  const componentes = comboSlots
+    .filter(s=>s.tipo==='producto' && s.codigo)
+    .map(s=>({tipo:'producto', codigo:s.codigo, cantidad:s.cantidad||1}))
+    .concat(comboSlots.filter(s=>s.tipo==='grupo' && s.grupoNombre).map(s=>({tipo:'grupo', grupoNombre:s.grupoNombre, cantidad:s.cantidad||1})));
+  if(!nombre || precioVenta<=0){ err.textContent = 'Metele nombre y precio de venta válidos.'; return; }
+  if(!componentes.length){ err.textContent = 'Elegí al menos un producto o grupo para el combo.'; return; }
+
+  if(comboEditandoId){
+    const c = state.combos.find(x=>x.id===comboEditandoId);
+    c.nombre = nombre; c.precioVenta = precioVenta; c.componentes = componentes; c.qr = qr;
+    closeModal();
+    guardar(); render();
+  } else {
+    const codigo = generarCodigo(nombre);
+    state.combos.push({id:Date.now(), codigo, nombre, precioVenta, activo:true, componentes, qr});
+    closeModal();
+    guardar(); render();
+  }
+}
+function toggleComboActivo(id){
+  const c = state.combos.find(x=>x.id===id);
+  if(c){ c.activo = !c.activo; guardar(); render(); }
+}
+function borrarCombo(id){
+  confirmarAccion('¿Eliminar este combo?', ()=>{ state.combos = state.combos.filter(x=>x.id!==id); guardar(); render(); });
+}
+
+// ---- Calculadora de costos ----
+let calcCostoDestino = null;
+let calcItems = [];
+let calcEditandoId = null;
+function abrirCalculadoraCostos(destinoInputId, calculoId){
+  calcCostoDestino = destinoInputId || null;
+  calcEditandoId = calculoId || null;
+  const existente = calculoId ? state.calculosCosto.find(c=>c.id===calculoId) : null;
+  calcItems = existente ? existente.items.map(it=>({...it})) : [{nombre:'', monto:0}, {nombre:'', monto:0}, {nombre:'', monto:0}];
+  openModal(`
+    <h3>Calculadora de costos</h3>
+    <p class="hint">Agregá los ítems que te cuesta producir este producto — vos decidís cuáles y cuántos según tu rubro.</p>
+    <div class="field-group"><label>Nombre del producto (para guardarlo)</label><input type="text" id="calc-nombre" placeholder="Ej. Camisa Azteca" value="${existente?existente.nombre:''}"></div>
+    <div id="calc-items"></div>
+    <div class="row"><button class="mini" type="button" onclick="agregarFilaCalc()">${ICONO_MAS} Agregar ítem</button></div>
+    <div class="row">
+      <select id="calc-modo" onchange="calcularCostos(false)">
+        <option value="sobrePrecio" ${(!existente||existente.modoMargen==='sobrePrecio')?'selected':''}>Margen sobre precio de venta</option>
+        <option value="sobreCosto" ${existente&&existente.modoMargen==='sobreCosto'?'selected':''}>Margen sobre costo (markup)</option>
+      </select>
+      <input type="number" id="calc-margen" step="1" value="${existente?existente.margen:30}" oninput="calcularCostos(false)" placeholder="% de ganancia">
+    </div>
+    <div class="row"><label class="check-line"><input type="checkbox" id="calc-con-iva" ${(!existente||existente.conIva)?'checked':''} onchange="calcularCostos(false)"> Incluir tu impuesto (${state.config.tasa}%)</label></div>
+    <div class="row" style="justify-content:space-between;font-weight:700;"><span>Costo total</span><span id="calc-costo-total">${fmt(0)}</span></div>
+    <div class="row" style="justify-content:space-between;font-weight:700;color:var(--primary);"><span>Precio sugerido</span><span id="calc-precio-sugerido">${fmt(0)}</span></div>
+    <hr>
+    <div class="field-group">
+      <label>¿Ya tenés un precio en mente? Metelo y te digo si es viable</label>
+      <input type="number" id="calc-precio-deseado" step="0.01" placeholder="Precio de venta que querés cobrar (con impuesto)" oninput="calcularCostos(false)">
+    </div>
+    <p class="hint" id="calc-viabilidad" style="font-weight:700;"></p>
+    <div class="row">
+      <button class="secondary" onclick="closeModal()">Cerrar</button>
+      <button class="secondary" onclick="guardarCalculoCosto()">${ICONO_GUARDAR} Guardar cálculo</button>
+      ${calcCostoDestino ? `<button onclick="calcularCostos(true)">Usar este precio</button>` : ''}
+    </div>
+  `);
+  renderFilasCalc();
+  calcularCostos(false);
+}
+function renderFilasCalc(){
+  const el = document.getElementById('calc-items');
+  if(!el) return;
+  el.innerHTML = calcItems.map((it,i)=>`
+    <div class="row">
+      <input type="text" value="${it.nombre}" placeholder="Ítem (ej. tela, sublimado, transporte)" oninput="actualizarFilaCalc(${i}, 'nombre', this.value)">
+      <input type="number" value="${it.monto||''}" placeholder="Costo" step="0.01" style="max-width:100px;" oninput="actualizarFilaCalc(${i}, 'monto', this.value)">
+      <button class="mini" type="button" onclick="quitarFilaCalc(${i})">${ICONO_X}</button>
+    </div>
+  `).join('');
+}
+function agregarFilaCalc(){
+  calcItems.push({nombre:'', monto:0});
+  renderFilasCalc();
+}
+function quitarFilaCalc(i){
+  calcItems.splice(i,1);
+  renderFilasCalc();
+  calcularCostos(false);
+}
+function actualizarFilaCalc(i, campo, valor){
+  calcItems[i][campo] = campo==='monto' ? (parseFloat(valor)||0) : valor;
+  calcularCostos(false);
+}
+function calcularCostos(usarPrecio){
+  const costoTotal = calcItems.reduce((s,it)=>s+(it.monto||0), 0);
+  const margen = parseFloat(document.getElementById('calc-margen').value) || 0;
+  const modo = document.getElementById('calc-modo').value;
+  const conIva = document.getElementById('calc-con-iva').checked;
+  const precioBase = modo==='sobreCosto' ? costoTotal*(1+margen/100) : (margen<100 ? costoTotal/(1-margen/100) : costoTotal);
+  const precioFinal = conIva ? precioBase * (1 + state.config.tasa/100) : precioBase;
+  document.getElementById('calc-costo-total').textContent = fmt(costoTotal);
+  document.getElementById('calc-precio-sugerido').textContent = fmt(precioFinal);
+
+  const precioDeseado = parseFloat(document.getElementById('calc-precio-deseado').value) || 0;
+  const viab = document.getElementById('calc-viabilidad');
+  if(precioDeseado > 0){
+    const precioDeseadoSinIva = conIva ? precioDeseado/(1+state.config.tasa/100) : precioDeseado;
+    const ganancia = precioDeseadoSinIva - costoTotal;
+    const margenReal = modo==='sobreCosto' ? (costoTotal>0 ? (ganancia/costoTotal)*100 : 0) : (precioDeseadoSinIva>0 ? (ganancia/precioDeseadoSinIva)*100 : 0);
+    if(ganancia < 0){
+      viab.style.color = 'var(--rust)';
+      viab.innerHTML = `${ICONO_ALERTA} Con ${fmt(precioDeseado)} estarías perdiendo ${fmt(Math.abs(ganancia))} por unidad.`;
+    } else {
+      viab.style.color = 'var(--moss)';
+      viab.innerHTML = `${ICONO_CHECK} Con ${fmt(precioDeseado)} tu margen real sería ${margenReal.toFixed(1)}% (ganancia de ${fmt(ganancia)} por unidad).`;
+    }
+  } else {
+    viab.textContent = '';
+  }
+
+  if(usarPrecio && calcCostoDestino){
+    const destino = document.getElementById(calcCostoDestino);
+    if(destino) destino.value = (precioDeseado>0 ? precioDeseado : precioFinal).toFixed(2);
+    closeModal();
+  }
+}
+function guardarCalculoCosto(){
+  const nombre = document.getElementById('calc-nombre').value.trim();
+  if(!nombre){ mostrarAlerta('Ponele un nombre de producto para guardar este cálculo.'); return; }
+  const margen = parseFloat(document.getElementById('calc-margen').value) || 0;
+  const modo = document.getElementById('calc-modo').value;
+  const conIva = document.getElementById('calc-con-iva').checked;
+  const datos = { nombre, items: calcItems.filter(it=>it.nombre||it.monto), margen, modoMargen:modo, conIva, fecha:new Date().toISOString().slice(0,10) };
+  if(calcEditandoId){
+    const idx = state.calculosCosto.findIndex(c=>c.id===calcEditandoId);
+    if(idx>-1) state.calculosCosto[idx] = {...state.calculosCosto[idx], ...datos};
+  } else {
+    state.calculosCosto.push({id:Date.now(), ...datos});
+  }
+  guardar(); render();
+  mostrarAlerta(`Cálculo de "${nombre}" guardado. Lo vas a ver en "Cálculos de costos guardados".`);
+}
+function editarCalculoCosto(id){
+  abrirCalculadoraCostos(null, id);
+}
+function borrarCalculoCosto(id){
+  confirmarAccion('¿Eliminar este cálculo guardado?', ()=>{ state.calculosCosto = state.calculosCosto.filter(c=>c.id!==id); guardar(); render(); });
+}
+function usarCalculoEnCampo(id, destinoInputId){
+  const c = state.calculosCosto.find(x=>x.id===id);
+  if(!c) return;
+  const costoTotal = c.items.reduce((s,it)=>s+(it.monto||0),0);
+  const precioBase = c.modoMargen==='sobreCosto' ? costoTotal*(1+c.margen/100) : (c.margen<100 ? costoTotal/(1-c.margen/100) : costoTotal);
+  const precioFinal = c.conIva ? precioBase*(1+state.config.tasa/100) : precioBase;
+  const destino = document.getElementById(destinoInputId);
+  if(destino) destino.value = precioFinal.toFixed(2);
+}
+
+function reiniciarDatos(){
+  confirmarAccion('Esto borrará todas tus ventas, compras, gastos e inventario. ¿Continuar?', async ()=>{
+    state.ventas = []; state.compras = []; state.gastos = []; state.inventario = [];
+    await guardar(); render();
+  });
+}
+
+function calcularMetricasPeriodo(desde, hasta, ventasArr, comprasArr, gastosArr){
+  const ventasF = (ventasArr||[]).filter(v=>enRango(v.fecha,desde,hasta));
+  const comprasF = (comprasArr||[]).filter(c=>enRango(c.fecha,desde,hasta));
+  const gastosF = (gastosArr||[]).filter(g=>enRango(g.fecha,desde,hasta));
+  const ventasTotal = ventasF.reduce((s,v)=>s+v.total,0);
+  const costoVendido = comprasF.reduce((s,c)=>s+c.total,0);
+  const gastosTotal = gastosF.reduce((s,g)=>s+g.monto,0);
+  const impuesto = ventasF.reduce((s,v)=>s+v.impuesto,0);
+  const cobrarTotal = ventasF.filter(v=>v.metodoPago==='fiado').reduce((s,v)=>s+v.total,0);
+  const cobrarPendiente = ventasF.filter(v=>v.metodoPago==='fiado' && v.estadoPago!=='pagado').reduce((s,v)=>s+v.total,0);
+  const gananciaNeta = ventasTotal - costoVendido - gastosTotal;
+  return { ventasTotal, costoVendido, gastosTotal, impuesto, gananciaNeta, cobrarTotal, cobrarPendiente };
+}
+function renderCapitalInvertido(){
+  const el = document.getElementById('conta-capital');
+  if(!el) return;
+  const total = state.compras.reduce((s,c)=>s+c.total,0);
+  el.innerHTML = `<div class="metric"><div class="lbl">Total invertido en compras</div><div class="val">${fmt(total)}</div></div>`;
+}
+function toggleComparar(){
+  document.getElementById('ct-comparar-fechas').style.display = document.getElementById('ct-comparar').checked ? 'flex' : 'none';
+  document.getElementById('conta-comparacion').innerHTML = '';
+}
+async function calcularContabilidad(){
+  renderCapitalInvertido();
+  const desde = document.getElementById('ct-desde').value, hasta = document.getElementById('ct-hasta').value;
+  const resEl = document.getElementById('conta-resultados');
+  if(!desde || !hasta){ resEl.innerHTML = '<div class="empty">Elegí un rango de fechas.</div>'; return; }
+  const m = calcularMetricasPeriodo(desde, hasta, state.ventas, state.compras, state.gastos);
+  resEl.innerHTML = `
+    <div class="cards">
+      <div class="metric pos"><div class="lbl">Ventas</div><div class="val">${fmt(m.ventasTotal)}</div></div>
+      <div class="metric neg"><div class="lbl">Costo de lo comprado</div><div class="val">${fmt(m.costoVendido)}</div></div>
+      <div class="metric neg"><div class="lbl">Gastos</div><div class="val">${fmt(m.gastosTotal)}</div></div>
+      <div class="metric"><div class="lbl">Impuesto recaudado</div><div class="val">${fmt(m.impuesto)}</div></div>
+      <div class="metric ${m.gananciaNeta>=0?'pos':'neg'}"><div class="lbl">Ganancia neta</div><div class="val">${fmt(m.gananciaNeta)}</div></div>
+      <div class="metric"><div class="lbl">Fiado del período</div><div class="val">${fmt(m.cobrarTotal)}</div></div>
+      <div class="metric neg"><div class="lbl">Fiado pendiente</div><div class="val">${fmt(m.cobrarPendiente)}</div></div>
+    </div>`;
+  if(document.getElementById('ct-comparar').checked) calcularComparacion(desde, hasta, m);
+  await renderDesgloseTiendas(desde, hasta);
+}
+function calcularComparacion(desde, hasta, m1){
+  const d2 = document.getElementById('ct2-desde').value, h2 = document.getElementById('ct2-hasta').value;
+  const el = document.getElementById('conta-comparacion');
+  if(!d2 || !h2){ el.innerHTML = ''; return; }
+  const m2 = calcularMetricasPeriodo(d2, h2, state.ventas, state.compras, state.gastos);
+  el.innerHTML = `<div class="table-scroll"><table><thead><tr><th></th><th class="num">${desde} a ${hasta}</th><th class="num">${d2} a ${h2}</th></tr></thead><tbody>
+    <tr><td>Ventas</td><td class="num">${fmt(m1.ventasTotal)}</td><td class="num">${fmt(m2.ventasTotal)}</td></tr>
+    <tr><td>Costo de lo comprado</td><td class="num">${fmt(m1.costoVendido)}</td><td class="num">${fmt(m2.costoVendido)}</td></tr>
+    <tr><td>Gastos</td><td class="num">${fmt(m1.gastosTotal)}</td><td class="num">${fmt(m2.gastosTotal)}</td></tr>
+    <tr><td>Ganancia neta</td><td class="num">${fmt(m1.gananciaNeta)}</td><td class="num">${fmt(m2.gananciaNeta)}</td></tr>
+  </tbody></table></div>`;
+}
+async function renderDesgloseTiendas(desde, hasta){
+  const el = document.getElementById('conta-tiendas');
+  if(!el) return;
+  if(!desde || !hasta){ el.innerHTML = '<div class="empty">Elegí un rango de fechas.</div>'; return; }
+  if(currentTiendas.length<2){ el.innerHTML = '<div class="empty">Solo tenés una tienda.</div>'; return; }
+  el.innerHTML = '<div class="empty">Consultando tiendas...</div>';
+  const filas = await Promise.all(currentTiendas.map(async id=>{
+    const t = await window.fb.leerTienda(id);
+    let datos = { ventas:[], compras:[], gastos:[] };
+    if(id === currentTiendaId){ datos = state; }
+    else {
+      const raw = await window.fb.leerDatosTienda(id);
+      if(raw){ try{ datos = JSON.parse(raw); }catch(e){} }
+    }
+    const m = calcularMetricasPeriodo(desde, hasta, datos.ventas, datos.compras, datos.gastos);
+    return { nombre: t?t.nombre:id, ...m };
+  }));
+  el.innerHTML = `<div class="table-scroll"><table><thead><tr><th>Tienda</th><th class="num">Ventas</th><th class="num">Gastos</th><th class="num">Ganancia</th></tr></thead><tbody>${filas.map(f=>
+    `<tr><td>${f.nombre}</td><td class="num">${fmt(f.ventasTotal)}</td><td class="num">${fmt(f.gastosTotal)}</td><td class="num">${fmt(f.gananciaNeta)}</td></tr>`
+  ).join('')}<tr style="font-weight:700;"><td>Total combinado</td><td class="num">${fmt(filas.reduce((s,f)=>s+f.ventasTotal,0))}</td><td class="num">${fmt(filas.reduce((s,f)=>s+f.gastosTotal,0))}</td><td class="num">${fmt(filas.reduce((s,f)=>s+f.gananciaNeta,0))}</td></tr></tbody></table></div>`;
+}
+function exportarContabilidadExcel(){
+  const desde = document.getElementById('ct-desde').value, hasta = document.getElementById('ct-hasta').value;
+  if(!desde || !hasta){ mostrarAlerta('Elegí un rango de fechas primero.'); return; }
+  const m = calcularMetricasPeriodo(desde, hasta, state.ventas, state.compras, state.gastos);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
+    {Concepto:'Ventas', Monto:Number(m.ventasTotal.toFixed(2))},
+    {Concepto:'Costo de lo comprado', Monto:Number(m.costoVendido.toFixed(2))},
+    {Concepto:'Gastos', Monto:Number(m.gastosTotal.toFixed(2))},
+    {Concepto:'Impuesto recaudado', Monto:Number(m.impuesto.toFixed(2))},
+    {Concepto:'Ganancia neta', Monto:Number(m.gananciaNeta.toFixed(2))},
+    {Concepto:'Fiado del período', Monto:Number(m.cobrarTotal.toFixed(2))},
+    {Concepto:'Fiado pendiente', Monto:Number(m.cobrarPendiente.toFixed(2))},
+    {Concepto:'Capital total invertido (histórico)', Monto:Number(state.compras.reduce((s,c)=>s+c.total,0).toFixed(2))}
+  ]), 'Estado de resultados');
+  XLSX.writeFile(wb, `contabilidad-${desde}_a_${hasta}.xlsx`);
+}
+
+function renderCuentasPorCobrar(){
+  const el = document.getElementById('lista-cobrar');
+  if(!el) return;
+  const pendientes = state.ventas.filter(v=>v.metodoPago==='fiado' && v.estadoPago!=='pagado');
+  el.innerHTML = pendientes.length ? `<div class="table-scroll"><table><thead><tr><th>Cód.</th><th>Fecha</th><th>Cliente</th><th>Vendedor</th><th class="num">Monto</th><th></th></tr></thead><tbody>${pendientes.map(v=>
+    `<tr><td><span class="code">${v.codigoVenta}</span></td><td>${v.fecha}</td><td>${v.cliente||'—'}</td><td>${v.registradoPor.nombre}</td><td class="num">${fmt(v.total)}</td><td><button class="mini" onclick="marcarVentaPagada(${v.id})">Marcar pagado</button></td></tr>`
+  ).join('')}</tbody></table></div>` : '<div class="empty">No hay cuentas pendientes de cobro.</div>';
+}
+function marcarVentaPagada(id){
+  const v = state.ventas.find(x=>x.id===id);
+  if(!v) return;
+  v.estadoPago = 'pagado';
+  v.fechaPago = new Date().toISOString().slice(0,10);
+  guardar(); render();
+}
+
+function render(){
+  renderCuentasPorCobrar();
+  document.getElementById('codigos-inv').innerHTML =
+    state.inventario.map(p=>`<option value="${p.codigo}">`).join('') +
+    state.combos.filter(c=>c.activo).map(c=>`<option value="${c.codigo}">`).join('');
+  document.getElementById('nombres-inv').innerHTML =
+    state.inventario.map(p=>`<option value="${p.producto}">`).join('') +
+    state.combos.filter(c=>c.activo).map(c=>`<option value="${c.nombre}">`).join('');
+  const categoriasUsadas = [...new Set(state.inventario.map(p=>p.categoria).filter(Boolean))];
+  document.getElementById('categorias-inv').innerHTML = categoriasUsadas.map(c=>`<option value="${c}">`).join('');
+  document.getElementById('p-productos-list').innerHTML = state.inventario.length ? state.inventario.map(p=>
+    `<label class="check-line"><input type="checkbox" class="p-producto-check" value="${p.codigo}"> <span class="code">${p.codigo}</span> ${p.producto}</label>`
+  ).join('') : '<p class="empty">Agregá productos en Inventario primero.</p>';
+  document.getElementById('lista-promociones').innerHTML = state.promociones.length ? state.promociones.map(p=>{
+    const detalle = p.tipo==='pct' ? `${p.valor}% de descuento` : p.tipo==='monto' ? `${fmt(p.valor)} de descuento` : `precio por cantidad: ${p.tramos.map(t=>`${t.minCantidad}+ → ${fmt(t.precio)}`).join(', ')}`;
+    const alcanceTxt = p.alcance==='toda' ? 'Toda la tienda' : `${p.productos.length} producto(s)`;
+    const fechaTxt = p.fechaInicio ? `Del ${p.fechaInicio} al ${p.fechaFin}` : 'Fija (sin vencimiento)';
+    return `<div class="card" style="margin-bottom:8px;padding:10px 12px;">
+      <div class="row" style="justify-content:space-between;flex-wrap:nowrap;margin-bottom:4px;">
+        <strong style="font-size:13px;">${p.nombre}</strong>
+        <span class="tag ${p.activo?'ok':'low'}" style="cursor:pointer;" onclick="togglePromoActivo(${p.id})">${p.activo?'Activa':'Pausada'}</span>
+      </div>
+      <p class="hint" style="margin:0 0 2px;">${alcanceTxt} — ${detalle}</p>
+      <p class="hint" style="margin:0 0 8px;">${ICONO_CALENDARIO} ${fechaTxt}</p>
+      <button class="danger" onclick="borrarPromocion(${p.id})">Eliminar</button>
+    </div>`;
+  }).join('') : '<div class="empty">Todavía no creás promociones.</div>';
+
+  const totalVentas = state.ventas.reduce((s,v)=>s+v.total,0);
+  const totalGastos = state.gastos.reduce((s,g)=>s+g.monto,0);
+  const totalCompras = state.compras.reduce((s,c)=>s+c.total,0);
+  const totalImpuesto = state.ventas.reduce((s,v)=>s+v.impuesto,0);
+  const ganancia = totalVentas - totalGastos - totalCompras;
+
+  document.getElementById('metrics').innerHTML = `
+    <div class="metric pos"><div class="lbl">Ventas</div><div class="val">${fmt(totalVentas)}</div></div>
+    <div class="metric neg"><div class="lbl">Compras</div><div class="val">${fmt(totalCompras)}</div></div>
+    <div class="metric neg"><div class="lbl">Gastos</div><div class="val">${fmt(totalGastos)}</div></div>
+    <div class="metric"><div class="lbl">Impuesto (${state.config.tasa}%)</div><div class="val">${fmt(totalImpuesto)}</div></div>
+    <div class="metric ${ganancia>=0?'pos':'neg'}"><div class="lbl">Ganancia neta</div><div class="val">${fmt(ganancia)}</div></div>
+  `;
+
+  const recientes = [
+    ...state.ventas.map(v=>({fecha:v.fecha,id:v.id,label: v.items.length>1 ? `${v.items.length} productos` : v.items[0].producto,monto:v.total,signo:1})),
+    ...state.compras.map(c=>({fecha:c.fecha,id:c.id,label:c.producto,monto:c.total,signo:-1})),
+    ...state.gastos.map(g=>({fecha:g.fecha,id:g.id,label:g.concepto,monto:g.monto,signo:-1}))
+  ].sort((a,b)=> b.id - a.id).slice(0,6);
+  document.getElementById('recientes').innerHTML = recientes.length ? `<div class="table-scroll"><table><tbody>${recientes.map(r=>
+    `<tr><td>${r.fecha}</td><td>${r.label}</td><td class="num" style="color:${r.signo>0?'var(--moss)':'var(--rust)'}">${r.signo>0?'+':'-'}${fmt(r.monto)}</td></tr>`
+  ).join('')}</tbody></table></div>` : '<div class="empty">Sin movimientos todavía.</div>';
+
+  document.getElementById('vf-bar').style.display = state.ventas.length ? 'flex' : 'none';
+  const vd = document.getElementById('vf-desde').value, vh = document.getElementById('vf-hasta').value, vt = (document.getElementById('vf-texto').value||'').toLowerCase();
+  const ventasF = state.ventas.filter(v => enRango(v.fecha,vd,vh) && (!vt || (v.items.map(it=>it.codigo+it.producto).join(' ')+(v.cliente||'')).toLowerCase().includes(vt)));
+  document.getElementById('lista-ventas').innerHTML = ventasF.length ? `<div class="table-scroll"><table><thead><tr><th>Cód.</th><th>Fecha</th><th>Productos</th><th>Cliente</th><th>Pago</th><th class="num">Desc.</th><th class="num">Base</th><th class="num">Impuesto</th><th class="num">Total</th><th class="center">Envío</th><th class="center">Enviado</th><th></th></tr></thead><tbody>${ventasF.map(v=>{
+    const resumenItems = v.items.map(it=>`<span class="code" style="margin-right:2px;">${it.codigo||'—'}</span>${it.cantidad}x ${it.producto}${it.promoAplicada?' '+ICONO_TAG:''}`).join('<br>');
+    const nombrePago = {efectivo:'Efectivo',tarjeta:'Tarjeta',transferencia:'Transferencia',pagare:'Pagaré',fiado:'Fiado'}[v.metodoPago] || v.metodoPago;
+    const pagoCelda = v.metodoPago==='fiado' ? `${nombrePago} <span class="tag ${v.estadoPago==='pagado'?'ok':'low'}">${v.estadoPago==='pagado'?'Pagado':'Pendiente'}</span>` : nombrePago;
+    return `<tr><td><span class="code">${v.codigoVenta}</span></td><td>${v.fecha}</td><td>${resumenItems}${v.vendedorAplicado?` <span class="tag ok">${ICONO_PERSONA} Cód. vendedor</span>`:''}${v.historial.length?` <span class="tag edit" onclick="verHistorial(${v.id})">editado x${v.historial.length}</span>`:''}</td><td>${v.cliente||'—'}<br><span class="hint" style="margin:0;">${ICONO_PERSONA} ${v.registradoPor.nombre}</span></td><td>${pagoCelda}</td><td class="num">${v.descuentoMonto?fmt(v.descuentoMonto):'—'}</td><td class="num">${fmt(v.subtotal)}</td><td class="num">${fmt(v.impuesto)}</td><td class="num">${fmt(v.total)}</td><td class="center">${v.requiereEnvio?`<span class="tag low" style="cursor:pointer;" onclick="verEnvio(${v.id})">${ICONO_CAJA}</span>`:'—'}</td><td class="center"><input type="checkbox" ${v.enviado?'checked':''} onchange="toggleEnviado(${v.id})"></td><td class="actions"><button class="mini" onclick="mostrarTicketPorId(${v.id})">Ticket</button><button class="mini venta-accion-editar" onclick="editarVenta(${v.id})">Editar</button><button class="danger venta-accion-editar" onclick="borrarVenta(${v.id})">Eliminar</button></td></tr>`;
+  }).join('')}</tbody></table></div>` : '<div class="empty">No hay ventas con ese filtro.</div>';
+
+  document.getElementById('cf-bar').style.display = state.compras.length ? 'flex' : 'none';
+  const cd = document.getElementById('cf-desde').value, ch = document.getElementById('cf-hasta').value, ct = (document.getElementById('cf-texto').value||'').toLowerCase();
+  const comprasF = state.compras.filter(c => enRango(c.fecha,cd,ch) && (!ct || (c.codigo+c.producto+(c.proveedor||'')).toLowerCase().includes(ct)));
+  document.getElementById('lista-compras').innerHTML = comprasF.length ? `<div class="table-scroll"><table><thead><tr><th>Fecha</th><th>Código</th><th>Producto</th><th>Proveedor</th><th class="num">Cant.</th><th class="num">Costo unit.</th><th class="num">Total</th><th></th></tr></thead><tbody>${comprasF.map(c=>
+    `<tr><td>${c.fecha}</td><td><span class="code">${c.codigo}</span></td><td>${c.producto}</td><td>${c.proveedor||'—'}</td><td class="num">${c.cantidad}</td><td class="num">${fmt(c.costo)}</td><td class="num">${fmt(c.total)}</td><td><button class="danger" onclick="borrarCompra(${c.id})">Eliminar</button></td></tr>`
+  ).join('')}</tbody></table></div>` : '<div class="empty">Todavía no registrás compras.</div>';
+
+  document.getElementById('gf-bar').style.display = state.gastos.length ? 'flex' : 'none';
+  const gd = document.getElementById('gf-desde').value, gh = document.getElementById('gf-hasta').value, gc = document.getElementById('gf-categoria').value;
+  const gastosF = state.gastos.filter(g => enRango(g.fecha,gd,gh) && (!gc || g.categoria===gc));
+  document.getElementById('lista-gastos').innerHTML = gastosF.length ? `<div class="table-scroll"><table><thead><tr><th>Fecha</th><th>Concepto</th><th>Categoría</th><th class="num">Monto</th><th></th></tr></thead><tbody>${gastosF.map(g=>
+    `<tr><td>${g.fecha}</td><td>${g.concepto}</td><td>${g.categoria}</td><td class="num">${fmt(g.monto)}</td><td><button class="danger" onclick="borrarGasto(${g.id})">Eliminar</button></td></tr>`
+  ).join('')}</tbody></table></div>` : '<div class="empty">No hay gastos con ese filtro.</div>';
+
+  document.getElementById('i-usar-calculo').innerHTML = '<option value="">O usar un cálculo guardado...</option>' + state.calculosCosto.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+  document.getElementById('lista-calculos').innerHTML = state.calculosCosto.length ? state.calculosCosto.map(c=>{
+    const costoTotal = c.items.reduce((s,it)=>s+(it.monto||0),0);
+    const precioBase = c.modoMargen==='sobreCosto' ? costoTotal*(1+c.margen/100) : (c.margen<100 ? costoTotal/(1-c.margen/100) : costoTotal);
+    const precioFinal = c.conIva ? precioBase*(1+state.config.tasa/100) : precioBase;
+    return `<div class="card" style="margin-bottom:8px;padding:10px 12px;">
+      <div class="row" style="justify-content:space-between;flex-wrap:nowrap;margin-bottom:4px;">
+        <strong style="font-size:13px;">${c.nombre}</strong>
+        <span class="hint" style="margin:0;">${c.fecha}</span>
+      </div>
+      <p class="hint" style="margin:0 0 8px;">Costo: ${fmt(costoTotal)} · Precio sugerido: ${fmt(precioFinal)}</p>
+      <div class="actions">
+        <button class="mini" onclick="editarCalculoCosto(${c.id})">Editar</button>
+        <button class="danger" onclick="borrarCalculoCosto(${c.id})">Eliminar</button>
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty">Todavía no guardás cálculos de costos.</div>';
+
+  document.getElementById('lista-combos').innerHTML = state.combos.length ? state.combos.map(c=>{
+    const detalle = c.componentes.map(comp=>{
+      if(comp.tipo==='grupo') return `${comp.cantidad}x (elegir variante de "${comp.grupoNombre}")`;
+      const prod = state.inventario.find(p=>p.codigo===comp.codigo);
+      return `${comp.cantidad}x ${prod?prod.producto:comp.codigo}`;
+    }).join(', ');
+    return `<div class="card" style="margin-bottom:8px;padding:10px 12px;">
+      <div class="row" style="justify-content:space-between;flex-wrap:nowrap;margin-bottom:4px;">
+        <strong style="font-size:13px;">${c.nombre} <span class="code">${c.codigo}</span></strong>
+        <span class="tag ${c.activo?'ok':'low'}" style="cursor:pointer;" onclick="toggleComboActivo(${c.id})">${c.activo?'Activo':'Pausado'}</span>
+      </div>
+      <p class="hint" style="margin:0 0 6px;">${detalle} — ${fmt(c.precioVenta)}</p>
+      <div class="actions">${c.qr?`<button class="mini" onclick="verQR('${c.codigo}')">QR</button>`:''}<button class="mini" onclick="abrirCrearCombo(${c.id})">Editar</button><button class="danger" onclick="borrarCombo(${c.id})">Eliminar</button></div>
+    </div>`;
+  }).join('') : '<div class="empty">Todavía no creás combos.</div>';
+
+  document.getElementById('if-bar').style.display = state.inventario.length ? 'flex' : 'none';
+  const catsExistentes = [...new Set(state.inventario.map(p=>p.categoria).filter(Boolean))];
+  const catSelActual = document.getElementById('if-categoria').value;
+  document.getElementById('if-categoria').innerHTML = '<option value="">Todas las categorías</option>' + catsExistentes.map(c=>`<option value="${c}" ${c===catSelActual?'selected':''}>${c}</option>`).join('');
+  const ift = (document.getElementById('if-texto').value||'').toLowerCase();
+  const ifc = document.getElementById('if-categoria').value;
+  const ifSoloVariantes = document.getElementById('if-solo-variantes').checked;
+  const inventarioFiltrado = state.inventario.filter(p=>
+    (!ift || (p.producto+p.codigo+(p.grupoNombre||'')+(p.categoria||'')).toLowerCase().includes(ift)) &&
+    (!ifc || p.categoria===ifc) &&
+    (!ifSoloVariantes || p.grupoNombre)
+  );
+
+  const gruposVistos = new Set();
+  const filasInventario = inventarioFiltrado.map(p=>{
+    let filaGrupo = '';
+    if(p.grupoNombre && !gruposVistos.has(p.grupoNombre)){
+      gruposVistos.add(p.grupoNombre);
+      const cantidadEnGrupo = inventarioFiltrado.filter(x=>x.grupoNombre===p.grupoNombre).length;
+      const colapsado = gruposColapsados.has(p.grupoNombre);
+      filaGrupo = `<tr style="background:var(--primary-soft);cursor:pointer;" onclick="toggleGrupoColapsado('${p.grupoNombre.replace(/'/g,"\\'")}')"><td colspan="4" style="font-weight:700;font-size:12px;">${colapsado?'▸':'▾'} ${p.grupoNombre} <span class="hint" style="margin:0;">(${cantidadEnGrupo} variantes)</span></td><td colspan="2" class="actions" onclick="event.stopPropagation();"><button class="mini" onclick="editarGrupoVariantes('${p.grupoNombre.replace(/'/g,"\\'")}')">Editar grupo</button><button class="danger" onclick="borrarGrupoVariantes('${p.grupoNombre.replace(/'/g,"\\'")}')">Eliminar grupo</button></td></tr>`;
+    }
+    if(p.grupoNombre && gruposColapsados.has(p.grupoNombre)) return filaGrupo;
+    return filaGrupo + `<tr><td><span class="code">${p.codigo}</span></td><td>${p.grupoNombre ? '↳ '+p.producto.replace(p.grupoNombre,'').trim() : p.producto}${p.categoria?` <span class="hint" style="margin:0;">· ${p.categoria}</span>`:''}</td><td class="num">${p.stock}</td><td class="num">${p.precioVenta?fmt(p.precioVenta):'—'}</td><td>${p.stock<=p.reorden ? '<span class="tag low">Reordenar</span>' : '<span class="tag ok">Ok</span>'}</td><td class="actions">${p.qr?`<button class="mini" onclick="verQR('${p.codigo}')">QR</button>`:''}<button class="mini" onclick="editarProducto(${p.id})">Editar</button><button class="danger" onclick="borrarProducto(${p.id})">Eliminar</button></td></tr>`;
+  }).join('');
+  document.getElementById('lista-inventario').innerHTML = inventarioFiltrado.length ? `<div class="table-scroll"><table><thead><tr><th>Código</th><th>Producto</th><th class="num">Stock</th><th class="num">Precio venta</th><th>Estado</th><th></th></tr></thead><tbody>${filasInventario}</tbody></table></div>` : (state.inventario.length ? '<div class="empty">No hay productos con ese filtro.</div>' : '<div class="empty">Todavía no agregás productos.</div>');
+}
+function limpiarFiltroInventario(){
+  document.getElementById('if-texto').value = '';
+  document.getElementById('if-categoria').value = '';
+  document.getElementById('if-solo-variantes').checked = false;
+  render();
+}
+
+// La carga de datos ahora se dispara desde window.fb.onAuthChange() según la sesión activa.
+</script>
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal-box" id="modal-box">
+    <div id="modal-body"></div>
+  </div>
+</div>
+</body>
+</html>
