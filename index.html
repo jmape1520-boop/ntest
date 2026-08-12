@@ -538,6 +538,9 @@
         <div class="row" id="i-campo-multiplicador" style="display:none;">
           <input type="number" id="i-multiplicador" placeholder="Cuántos por producto vendido (ej. 1)" min="0" step="0.5">
         </div>
+        <div class="row">
+          <label class="check-line"><input type="checkbox" id="i-vender-extra"> Permitir venderlo como extra (aparece en Ventas para cobrarlo aparte)</label>
+        </div>
       </div>
       <div class="row">
         <button onclick="agregarProducto()">Agregar producto</button>
@@ -837,6 +840,7 @@ function normalizarEstado(){
     if(p.modoConsumo===undefined) p.modoConsumo='capacidad';
     if(p.capacidad===undefined) p.capacidad=1;
     if(p.multiplicador===undefined) p.multiplicador=1;
+    if(p.venderComoExtra===undefined) p.venderComoExtra=false;
   });
   state.promociones.forEach(p=>{ if(p.fechaInicio===undefined){ p.fechaInicio=null; p.fechaFin=null; } });
   if(!state.codigoVendedor) state.codigoVendedor = { codigo:'', tipo:'pct', valor:0, limiteMensual:0, activo:false, usos:{mesActual:'', cantidad:0} };
@@ -1676,6 +1680,13 @@ function leerItemFormulario(){
   const precio = parseFloat(document.getElementById('v-precio').value) || 0;
   if(!producto || precio <= 0) return null;
   const esCombo = state.combos.some(c=>c.codigo===codigo && c.activo);
+  if(!esCombo){
+    const itemInsumo = state.inventario.find(p=>p.codigo===codigo);
+    if(itemInsumo && itemInsumo.esInsumo && !itemInsumo.venderComoExtra){
+      mostrarAlerta(`"${itemInsumo.producto}" es un insumo de servicio, no está pensado para venderse directo. Si querés cobrarlo como extra, activá "Permitir venderlo como extra" en Inventario.`);
+      return null;
+    }
+  }
   const totalBruto = cantidad * precio;
   if(esCombo){
     const combo = state.combos.find(c=>c.codigo===codigo);
@@ -2206,12 +2217,13 @@ async function agregarProducto(){
   const modoConsumo = document.getElementById('i-modo-consumo').value;
   const capacidad = parseFloat(document.getElementById('i-capacidad').value) || 1;
   const multiplicador = parseFloat(document.getElementById('i-multiplicador').value) || 1;
+  const venderComoExtra = document.getElementById('i-vender-extra').checked;
   if(!producto) return;
   if(state.inventario.some(p=>p.producto.toUpperCase()===producto)){
     mostrarAlerta(`Ya existe un producto llamado "${producto}" en tu inventario. Usá un nombre distinto, o editá el existente.`);
     return;
   }
-  const datosProducto = { producto, categoria, stock, reorden, precioVenta, qr, unidad, tamano, esInsumo, modoConsumo, capacidad, multiplicador };
+  const datosProducto = { producto, categoria, stock, reorden, precioVenta, qr, unidad, tamano, esInsumo, modoConsumo, capacidad, multiplicador, venderComoExtra };
   if(currentCadenaId){
     const encontrado = await buscarProductoEnHermanas(producto);
     if(encontrado){
@@ -2263,7 +2275,8 @@ function finalizarAgregarProducto(datosProducto, codigo){
     stock:datosProducto.stock, reorden:datosProducto.reorden, precioVenta:datosProducto.precioVenta, qr:datosProducto.qr,
     unidad:datosProducto.unidad||'unidad', tamano:datosProducto.tamano||'chico',
     esInsumo:datosProducto.esInsumo||false, modoConsumo:datosProducto.modoConsumo||'capacidad',
-    capacidad:datosProducto.capacidad||1, multiplicador:datosProducto.multiplicador||1
+    capacidad:datosProducto.capacidad||1, multiplicador:datosProducto.multiplicador||1,
+    venderComoExtra:datosProducto.venderComoExtra||false
   };
   state.inventario.unshift(nuevo);
   document.getElementById('i-producto').value=''; document.getElementById('i-categoria').value=''; document.getElementById('i-stock').value='';
@@ -2275,6 +2288,7 @@ function finalizarAgregarProducto(datosProducto, codigo){
   document.getElementById('i-modo-consumo').value = 'capacidad';
   document.getElementById('i-capacidad').value = '';
   document.getElementById('i-multiplicador').value = '';
+  document.getElementById('i-vender-extra').checked = false;
   onEsInsumoChange(); onModoConsumoChange();
   guardar(); render();
   if(nuevo.stock > 0) abrirPreguntaCompraInicial(nuevo);
@@ -2335,6 +2349,7 @@ function editarProducto(id){
       <div class="row" id="ep-campo-multiplicador" style="display:${p.modoConsumo==='porUnidad'?'flex':'none'};">
         <input type="number" id="ep-multiplicador" value="${p.multiplicador||1}" placeholder="Cuántos por producto vendido" min="0" step="0.5">
       </div>
+      <div class="row"><label class="check-line"><input type="checkbox" id="ep-vender-extra" ${p.venderComoExtra?'checked':''}> Permitir venderlo como extra (aparece en Ventas)</label></div>
     </div>
     <div class="row">
       <button class="secondary" onclick="closeModal()">Cancelar</button>
@@ -2370,6 +2385,7 @@ function guardarEdicionProducto(id){
   p.modoConsumo = document.getElementById('ep-modo-consumo').value;
   p.capacidad = parseFloat(document.getElementById('ep-capacidad').value) || 1;
   p.multiplicador = parseFloat(document.getElementById('ep-multiplicador').value) || 1;
+  p.venderComoExtra = document.getElementById('ep-vender-extra').checked;
   guardar(); render(); closeModal();
 }
 function borrarProducto(id){
@@ -2907,11 +2923,13 @@ function marcarVentaPagada(id){
 
 function render(){
   renderCuentasPorCobrar();
+  renderSugerenciaEmpaque();
+  const vendibles = state.inventario.filter(p=>!p.esInsumo || p.venderComoExtra);
   document.getElementById('codigos-inv').innerHTML =
-    state.inventario.map(p=>`<option value="${p.codigo}">`).join('') +
+    vendibles.map(p=>`<option value="${p.codigo}">`).join('') +
     state.combos.filter(c=>c.activo).map(c=>`<option value="${c.codigo}">`).join('');
   document.getElementById('nombres-inv').innerHTML =
-    state.inventario.map(p=>`<option value="${p.producto}">`).join('') +
+    vendibles.map(p=>`<option value="${p.producto}">`).join('') +
     state.combos.filter(c=>c.activo).map(c=>`<option value="${c.nombre}">`).join('');
   const categoriasUsadas = [...new Set(state.inventario.map(p=>p.categoria).filter(Boolean))];
   document.getElementById('categorias-inv').innerHTML = categoriasUsadas.map(c=>`<option value="${c}">`).join('');
