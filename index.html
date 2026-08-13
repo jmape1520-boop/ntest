@@ -135,6 +135,8 @@
   .brand-badges{display:flex;gap:6px;align-items:center;margin-top:6px;}
   header p{margin:2px 0 0;color:var(--ink-soft);font-size:12px;}
   .btn-excel{background:var(--gold);white-space:nowrap;flex:0 0 auto;}
+  .btn-tool{background:transparent;border:1.5px solid var(--gold);color:var(--gold);box-shadow:none;}
+  .help-icon{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;min-height:auto;border-radius:50%;background:var(--primary-soft);color:var(--primary);font-size:11px;font-weight:800;padding:0;box-shadow:none;vertical-align:middle;margin-left:4px;cursor:pointer;}
   .tabs{display:flex;gap:4px;margin-bottom:0;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px;flex:1;min-width:0;}
   .tabs-row{display:flex;align-items:center;gap:6px;margin-bottom:18px;}
   .avatar-btn{width:40px;height:40px;border-radius:50%;border:none;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:var(--elev1);flex:0 0 auto;padding:0;min-height:auto;}
@@ -236,6 +238,7 @@
     .brand .b1{font-size:20px;}
     .row{flex-direction:column;align-items:stretch;}
     .row input,.row select,.row button{width:100%;}
+    .row .avatar-btn{width:40px;flex:0 0 auto;}
     .row input[type=checkbox]{width:20px;align-self:flex-start;}
     .check-line{align-self:flex-start;}
     .filters{flex-direction:column;align-items:stretch;}
@@ -344,13 +347,15 @@
     <div class="cards" id="metrics"></div>
     <div class="card">
       <h3>Stock bajo</h3>
-      <p class="hint">Productos en o por debajo de su punto de reorden — para no tener que revisarlos uno por uno en Inventario.</p>
       <div id="lista-stock-bajo"></div>
     </div>
     <div class="card">
       <h3>Cuentas por cobrar</h3>
-      <p class="hint">Ventas fiadas — les vendiste a crédito y todavía te deben.</p>
       <div id="lista-cobrar"></div>
+    </div>
+    <div class="card">
+      <h3>Cuentas por pagar</h3>
+      <div id="lista-pagar"></div>
     </div>
     <div class="card">
       <h3>Movimientos recientes</h3>
@@ -360,8 +365,7 @@
 
   <div class="panel" id="panel-ventas">
     <div class="card" id="ventas-registrar-card">
-      <h3>Registrar venta</h3>
-      <p class="hint">El precio unitario ya incluye el impuesto. El sistema calcula por separado cuánto es base y cuánto es impuesto.</p>
+      <h3>Registrar venta <button type="button" class="help-icon" onclick="mostrarAlerta('El precio unitario ya incluye el impuesto. El sistema calcula por separado cuánto es base y cuánto es impuesto.')">?</button></h3>
       <div class="row">
         <input list="codigos-inv" type="text" id="v-codigo" placeholder="Código" oninput="autollenarVenta()">
         <datalist id="codigos-inv"></datalist>
@@ -428,7 +432,6 @@
   <div class="panel" id="panel-kardex">
     <div class="card">
       <h3>Kardex de producto</h3>
-      <p class="hint">Elegí un producto para ver su historial de movimientos y, si tu tienda pertenece a una cadena, el stock en tus sucursales hermanas.</p>
       <div class="row">
         <input list="nombres-kardex" type="text" id="kx-producto" placeholder="Buscá un producto por nombre" oninput="cargarKardex()">
         <datalist id="nombres-kardex"></datalist>
@@ -447,8 +450,7 @@
 
   <div class="panel" id="panel-compras">
     <div class="card">
-      <h3>Registrar compra (abastece inventario)</h3>
-      <p class="hint">Solo para artículos que ya existen en tu inventario — la cantidad comprada se suma automáticamente al stock. Escaneá el QR pegado en el producto para no tener que buscarlo.</p>
+      <h3>Registrar compra (abastece inventario) <button type="button" class="help-icon" onclick="mostrarAlerta('Solo para artículos que ya existen en tu inventario — la cantidad comprada se suma automáticamente al stock. Escaneá el QR pegado en el producto para no tener que buscarlo.')">?</button></h3>
       <div class="row">
         <input list="codigos-inv" type="text" id="c-codigo" placeholder="Código del producto" oninput="autollenarCompra()">
         <button class="scan" onclick="abrirScanner('autollenarCompraPorCodigoEscaneado')" type="button"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px;"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>Escanear</button>
@@ -462,6 +464,15 @@
       </div>
       <div class="row">
         <input type="text" id="c-proveedor" placeholder="Proveedor (opcional)">
+        <select id="c-metodo-pago">
+          <option value="efectivo">Efectivo</option>
+          <option value="tarjeta">Tarjeta</option>
+          <option value="transferencia">Transferencia</option>
+          <option value="pagare">Pagaré</option>
+          <option value="fiado">Fiado</option>
+        </select>
+      </div>
+      <div class="row">
         <button onclick="agregarCompra()">Registrar compra</button>
       </div>
     </div>
@@ -503,6 +514,15 @@
       </div>
       <div class="row">
         <input type="number" id="g-monto" placeholder="Monto" step="0.01">
+        <select id="g-metodo-pago">
+          <option value="efectivo">Efectivo</option>
+          <option value="tarjeta">Tarjeta</option>
+          <option value="transferencia">Transferencia</option>
+          <option value="pagare">Pagaré</option>
+          <option value="fiado">Fiado</option>
+        </select>
+      </div>
+      <div class="row">
         <button onclick="agregarGasto()">Registrar gasto</button>
       </div>
     </div>
@@ -526,7 +546,6 @@
   <div class="panel" id="panel-inventario">
     <div class="card">
       <h3>Agregar producto</h3>
-      <p class="hint">El código se genera solo — lo usás luego en Ventas y Compras.</p>
       <div class="row">
         <input type="text" id="i-producto" placeholder="Producto" style="text-transform:uppercase;">
         <input list="categorias-inv" type="text" id="i-categoria" placeholder="Categoría (ej. Ropa, Comida)">
@@ -589,10 +608,8 @@
         <button class="secondary" type="button" onclick="abrirCrearVariantes()">Crear con variantes (talla/color)</button>
       </div>
       <div class="row">
-        <button class="secondary" type="button" onclick="abrirCopiarProductos()">Copiar productos de otra tienda</button>
-      </div>
-      <div class="row">
-        <button class="secondary" type="button" onclick="descargarTodosLosQR()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Descargar todos los QR (PDF)</button>
+        <button class="btn-tool" type="button" onclick="abrirCopiarProductos()">Copiar productos de otra tienda</button>
+        <button class="btn-tool" type="button" onclick="descargarTodosLosQR()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Descargar todos los QR (PDF)</button>
       </div>
     </div>
     <div class="card">
@@ -611,8 +628,7 @@
 
   <div class="panel" id="panel-costos">
     <div class="card">
-      <h3>Cálculos de costos guardados</h3>
-      <p class="hint">Calculá el costo de producción de un producto, guardalo por nombre, y usalo cuando quieras al fijar el precio en Inventario, Variantes o Combos.</p>
+      <h3>Cálculos de costos guardados <button type="button" class="help-icon" onclick="mostrarAlerta('Calculá el costo de producción de un producto, guardalo por nombre, y usalo cuando quieras al fijar el precio en Inventario, Variantes o Combos.')">?</button></h3>
       <div class="row"><button class="secondary" type="button" onclick="abrirCalculadoraCostos(null)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px;"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="8" y1="10" x2="10" y2="10"></line><line x1="14" y1="10" x2="16" y2="10"></line><line x1="8" y1="14" x2="10" y2="14"></line><line x1="14" y1="14" x2="16" y2="14"></line></svg>Nuevo cálculo</button></div>
       <div id="lista-calculos"></div>
     </div>
@@ -710,8 +726,7 @@
     </div>
 
     <div class="card">
-      <h3>Combos</h3>
-      <p class="hint">Un combo agrupa varios productos existentes bajo un solo precio de venta — al venderlo, descuenta stock de todos sus componentes. Sirve para bundles de ropa o combos de comida por igual.</p>
+      <h3>Combos <button type="button" class="help-icon" onclick="mostrarAlerta('Un combo agrupa varios productos existentes bajo un solo precio de venta — al venderlo, descuenta stock de todos sus componentes. Sirve para bundles de ropa o combos de comida por igual.')">?</button></h3>
       <div class="row"><button class="secondary" type="button" onclick="abrirCrearCombo()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>Crear combo</button></div>
       <div id="lista-combos"></div>
     </div>
@@ -860,6 +875,8 @@ let currentUid = null, currentRol = null, currentTiendaId = null, currentTiendas
 
 function normalizarEstado(){
   state.compras = state.compras || [];
+  state.compras.forEach(c=>{ if(c.metodoPago===undefined) c.metodoPago='efectivo'; if(c.estadoPago===undefined) c.estadoPago='pagado'; });
+  state.gastos.forEach(g=>{ if(g.metodoPago===undefined) g.metodoPago='efectivo'; if(g.estadoPago===undefined) g.estadoPago='pagado'; });
   state.promociones = state.promociones || [];
   state.ventas.forEach(v=>{
     v.historial = v.historial || [];
@@ -970,7 +987,6 @@ function mensajeErrorAuth(err){
 function abrirFormularioRegistro(){
   openModal(`
     <h3>Creá tu cuenta</h3>
-    <p class="hint">Todo en un solo paso — así entrás directo a trabajar.</p>
     <div class="field-group"><label>Tu nombre</label><input type="text" id="reg-nombre" placeholder="Nombre completo"></div>
     <div class="field-group"><label>Correo electrónico</label><input type="email" id="reg-email" placeholder="correo@ejemplo.com"></div>
     <div class="field-group">
@@ -2000,7 +2016,8 @@ function finalizarVenta(){
 
   const ventaId = Date.now();
   const insumosUsados = leerInsumosSugeridos();
-  const venta = {id:ventaId, codigoVenta:'V-'+String(ventaId).slice(-6), fecha:new Date().toISOString().slice(0,10), items: carritoActual.map(it=>({...it})), cliente, metodoPago, estadoPago: metodoPago==='fiado' ? 'pendiente' : 'pagado', fechaPago: metodoPago==='fiado' ? null : new Date().toISOString().slice(0,10), registradoPor: {uid:currentUid, nombre:currentNombre||'—'}, totalBruto, vendedorAplicado, vendedorDescuentoMonto, descuentoMonto, subtotal, impuesto, total:totalFinal, historial:[], enviado:false, requiereEnvio, envio, insumosUsados};
+  const esPendienteVenta = metodoPago==='fiado' || metodoPago==='pagare';
+  const venta = {id:ventaId, codigoVenta:'V-'+String(ventaId).slice(-6), fecha:new Date().toISOString().slice(0,10), items: carritoActual.map(it=>({...it})), cliente, metodoPago, estadoPago: esPendienteVenta ? 'pendiente' : 'pagado', fechaPago: esPendienteVenta ? null : new Date().toISOString().slice(0,10), registradoPor: {uid:currentUid, nombre:currentNombre||'—'}, totalBruto, vendedorAplicado, vendedorDescuentoMonto, descuentoMonto, subtotal, impuesto, total:totalFinal, historial:[], enviado:false, requiereEnvio, envio, insumosUsados};
   state.ventas.unshift(venta);
   carritoActual.forEach(it=>{
     if(it.esCombo){
@@ -2065,7 +2082,7 @@ function mostrarTicket(v){
         ${lineaDesc}
         <hr>
         <div class="tline" style="font-weight:700;"><span>TOTAL</span><span>${fmt(v.total)}</span></div>
-        <div class="tline"><span>Pago</span><span>${nombrePago}${v.metodoPago==='fiado'&&v.estadoPago!=='pagado'?' (pendiente)':''}</span></div>
+        <div class="tline"><span>Pago</span><span>${nombrePago}${(v.metodoPago==='fiado'||v.metodoPago==='pagare')&&v.estadoPago!=='pagado'?' (pendiente)':''}</span></div>
         ${v.requiereEnvio ? `<hr><div class="hint">Envío a: ${v.envio.direccion}${v.envio.transportista?' — '+v.envio.transportista:''}</div>` : ''}
       </div>
     </div>
@@ -2338,12 +2355,15 @@ function agregarCompra(){
   const cantidad = parseFloat(document.getElementById('c-cantidad').value) || 0;
   const costo = parseFloat(document.getElementById('c-costo').value) || 0;
   const proveedor = document.getElementById('c-proveedor').value.trim();
+  const metodoPago = document.getElementById('c-metodo-pago').value;
   if(cantidad<=0 || costo<=0) return;
-  state.compras.unshift({id:Date.now(), fecha:new Date().toISOString().slice(0,10), codigo, producto:item.producto, cantidad, costo, total:cantidad*costo, proveedor});
+  const esPendiente = metodoPago==='fiado' || metodoPago==='pagare';
+  state.compras.unshift({id:Date.now(), fecha:new Date().toISOString().slice(0,10), codigo, producto:item.producto, cantidad, costo, total:cantidad*costo, proveedor, metodoPago, estadoPago: esPendiente ? 'pendiente' : 'pagado'});
   item.stock += cantidad;
   ['c-codigo','c-producto','c-proveedor'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('c-cantidad').value='1';
   document.getElementById('c-costo').value='';
+  document.getElementById('c-metodo-pago').value='efectivo';
   guardar(); render();
 }
 function borrarCompra(id){
@@ -2354,18 +2374,33 @@ function borrarCompra(id){
     state.compras = state.compras.filter(x=>x.id!==id); guardar(); render();
   });
 }
+function marcarCompraPagada(id){
+  const c = state.compras.find(x=>x.id===id);
+  if(!c) return;
+  c.estadoPago = 'pagado';
+  guardar(); render();
+}
 
 function agregarGasto(){
   const concepto = document.getElementById('g-concepto').value.trim();
   const categoria = document.getElementById('g-categoria').value;
   const monto = parseFloat(document.getElementById('g-monto').value) || 0;
+  const metodoPago = document.getElementById('g-metodo-pago').value;
   if(!concepto || monto <= 0) return;
-  state.gastos.unshift({id:Date.now(), fecha:new Date().toISOString().slice(0,10), concepto, categoria, monto});
+  const esPendiente = metodoPago==='fiado' || metodoPago==='pagare';
+  state.gastos.unshift({id:Date.now(), fecha:new Date().toISOString().slice(0,10), concepto, categoria, monto, metodoPago, estadoPago: esPendiente ? 'pendiente' : 'pagado'});
   document.getElementById('g-concepto').value=''; document.getElementById('g-monto').value='';
+  document.getElementById('g-metodo-pago').value='efectivo';
   guardar(); render();
 }
 function borrarGasto(id){
   confirmarAccion('¿Eliminar este gasto?', ()=>{ state.gastos = state.gastos.filter(g=>g.id!==id); guardar(); render(); });
+}
+function marcarGastoPagado(id){
+  const g = state.gastos.find(x=>x.id===id);
+  if(!g) return;
+  g.estadoPago = 'pagado';
+  guardar(); render();
 }
 
 function onEsInsumoChange(){
@@ -2993,10 +3028,13 @@ function calcularMetricasPeriodo(desde, hasta, ventasArr, comprasArr, gastosArr)
   const costoVendido = comprasF.reduce((s,c)=>s+c.total,0);
   const gastosTotal = gastosF.reduce((s,g)=>s+g.monto,0);
   const impuesto = ventasF.reduce((s,v)=>s+v.impuesto,0);
-  const cobrarTotal = ventasF.filter(v=>v.metodoPago==='fiado').reduce((s,v)=>s+v.total,0);
-  const cobrarPendiente = ventasF.filter(v=>v.metodoPago==='fiado' && v.estadoPago!=='pagado').reduce((s,v)=>s+v.total,0);
+  const cobrarTotal = ventasF.filter(v=>v.metodoPago==='fiado'||v.metodoPago==='pagare').reduce((s,v)=>s+v.total,0);
+  const cobrarPendiente = ventasF.filter(v=>(v.metodoPago==='fiado'||v.metodoPago==='pagare') && v.estadoPago!=='pagado').reduce((s,v)=>s+v.total,0);
+  const pagarComprasPendiente = comprasF.filter(c=>(c.metodoPago==='fiado'||c.metodoPago==='pagare') && c.estadoPago!=='pagado').reduce((s,c)=>s+c.total,0);
+  const pagarGastosPendiente = gastosF.filter(g=>(g.metodoPago==='fiado'||g.metodoPago==='pagare') && g.estadoPago!=='pagado').reduce((s,g)=>s+g.monto,0);
+  const pagarPendiente = pagarComprasPendiente + pagarGastosPendiente;
   const gananciaNeta = ventasTotal - costoVendido - gastosTotal;
-  return { ventasTotal, costoVendido, gastosTotal, impuesto, gananciaNeta, cobrarTotal, cobrarPendiente };
+  return { ventasTotal, costoVendido, gastosTotal, impuesto, gananciaNeta, cobrarTotal, cobrarPendiente, pagarPendiente };
 }
 function renderCapitalInvertido(){
   const el = document.getElementById('conta-capital');
@@ -3022,7 +3060,8 @@ async function calcularContabilidad(){
       <div class="metric"><div class="lbl">Impuesto recaudado</div><div class="val">${fmt(m.impuesto)}</div></div>
       <div class="metric ${m.gananciaNeta>=0?'pos':'neg'}"><div class="lbl">Ganancia neta</div><div class="val">${fmt(m.gananciaNeta)}</div></div>
       <div class="metric"><div class="lbl">Fiado del período</div><div class="val">${fmt(m.cobrarTotal)}</div></div>
-      <div class="metric neg"><div class="lbl">Fiado pendiente</div><div class="val">${fmt(m.cobrarPendiente)}</div></div>
+      <div class="metric neg"><div class="lbl">Fiado pendiente (cobrar)</div><div class="val">${fmt(m.cobrarPendiente)}</div></div>
+      <div class="metric neg"><div class="lbl">Pendiente de pagar</div><div class="val">${fmt(m.pagarPendiente)}</div></div>
     </div>`;
   if(document.getElementById('ct-comparar').checked) calcularComparacion(desde, hasta, m);
   await renderDesgloseTiendas(desde, hasta);
@@ -3076,7 +3115,8 @@ function exportarContabilidadExcel(){
     {Concepto:'Impuesto recaudado', Monto:Number(m.impuesto.toFixed(2))},
     {Concepto:'Ganancia neta', Monto:Number(m.gananciaNeta.toFixed(2))},
     {Concepto:'Fiado del período', Monto:Number(m.cobrarTotal.toFixed(2))},
-    {Concepto:'Fiado pendiente', Monto:Number(m.cobrarPendiente.toFixed(2))},
+    {Concepto:'Fiado pendiente (cobrar)', Monto:Number(m.cobrarPendiente.toFixed(2))},
+    {Concepto:'Pendiente de pagar', Monto:Number(m.pagarPendiente.toFixed(2))},
     {Concepto:'Capital total invertido (histórico)', Monto:Number(state.compras.reduce((s,c)=>s+c.total,0).toFixed(2))}
   ]), 'Resumen');
 
@@ -3094,17 +3134,21 @@ function exportarContabilidadExcel(){
 
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(comprasF.map(c=>({
     Fecha:c.fecha, Codigo:c.codigo, Producto:c.producto, Proveedor:c.proveedor, Cantidad:c.cantidad,
-    CostoUnitario:Number(c.costo.toFixed(2)), Total:Number(c.total.toFixed(2))
+    CostoUnitario:Number(c.costo.toFixed(2)), Total:Number(c.total.toFixed(2)), MetodoPago:c.metodoPago, EstadoPago:c.estadoPago
   }))), 'Compras');
 
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gastosF.map(g=>({
-    Fecha:g.fecha, Concepto:g.concepto, Categoria:g.categoria, Monto:Number(g.monto.toFixed(2))
+    Fecha:g.fecha, Concepto:g.concepto, Categoria:g.categoria, Monto:Number(g.monto.toFixed(2)), MetodoPago:g.metodoPago, EstadoPago:g.estadoPago
   }))), 'Gastos');
 
-  const fiadosF = ventasF.filter(v=>v.metodoPago==='fiado');
+  const fiadosF = ventasF.filter(v=>v.metodoPago==='fiado'||v.metodoPago==='pagare');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(fiadosF.map(v=>({
-    CodigoVenta:v.codigoVenta, Fecha:v.fecha, Cliente:v.cliente||'—', Estado:v.estadoPago, Monto:Number(v.total.toFixed(2))
+    CodigoVenta:v.codigoVenta, Fecha:v.fecha, Cliente:v.cliente||'—', MetodoPago:v.metodoPago, Estado:v.estadoPago, Monto:Number(v.total.toFixed(2))
   }))), 'Cuentas por cobrar');
+
+  const pagarComprasF = comprasF.filter(c=>c.metodoPago==='fiado'||c.metodoPago==='pagare').map(c=>({Tipo:'Compra', Fecha:c.fecha, AQuien:c.proveedor||'—', MetodoPago:c.metodoPago, Estado:c.estadoPago, Monto:Number(c.total.toFixed(2))}));
+  const pagarGastosF = gastosF.filter(g=>g.metodoPago==='fiado'||g.metodoPago==='pagare').map(g=>({Tipo:'Gasto', Fecha:g.fecha, AQuien:g.concepto, MetodoPago:g.metodoPago, Estado:g.estadoPago, Monto:Number(g.monto.toFixed(2))}));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([...pagarComprasF, ...pagarGastosF]), 'Cuentas por pagar');
 
   XLSX.writeFile(wb, `contabilidad-${desde}_a_${hasta}.xlsx`);
 }
@@ -3112,13 +3156,13 @@ function exportarContabilidadExcel(){
 function renderRestock(){
   const el = document.getElementById('lista-restock');
   if(!el) return;
-  const conQR = state.inventario.filter(p=>p.qr);
-  el.innerHTML = conQR.length ? conQR.map(p=>
+  const bajos = state.inventario.filter(p=>p.qr && p.stock<=p.reorden);
+  el.innerHTML = bajos.length ? bajos.map(p=>
     `<div class="row" style="justify-content:space-between;flex-wrap:nowrap;background:var(--paper);padding:8px 10px;border-radius:8px;">
       <span style="font-size:13px;"><span class="code">${p.codigo}</span> ${p.producto} <span class="hint" style="margin:0;">${fmtCantidad(p.stock,p.unidad)}</span></span>
       <button class="mini" onclick="verQR('${p.codigo}')">QR</button>
     </div>`
-  ).join('') : '<div class="empty">Todavía no tenés productos con QR activado.</div>';
+  ).join('') : '<div class="empty">No hay productos con QR por debajo de su punto de reorden.</div>';
 }
 function renderStockBajo(){
   const el = document.getElementById('lista-stock-bajo');
@@ -3134,10 +3178,20 @@ function renderStockBajo(){
 function renderCuentasPorCobrar(){
   const el = document.getElementById('lista-cobrar');
   if(!el) return;
-  const pendientes = state.ventas.filter(v=>v.metodoPago==='fiado' && v.estadoPago!=='pagado');
+  const pendientes = state.ventas.filter(v=>(v.metodoPago==='fiado'||v.metodoPago==='pagare') && v.estadoPago!=='pagado');
   el.innerHTML = pendientes.length ? `<div class="table-scroll"><table><thead><tr><th>Cód.</th><th>Fecha</th><th>Cliente</th><th>Vendedor</th><th class="num">Monto</th><th></th></tr></thead><tbody>${pendientes.map(v=>
     `<tr><td><span class="code">${v.codigoVenta}</span></td><td>${v.fecha}</td><td>${v.cliente||'—'}</td><td>${v.registradoPor.nombre}</td><td class="num">${fmt(v.total)}</td><td><button class="mini" onclick="marcarVentaPagada(${v.id})">Marcar pagado</button></td></tr>`
   ).join('')}</tbody></table></div>` : '<div class="empty">No hay cuentas pendientes de cobro.</div>';
+}
+function renderCuentasPorPagar(){
+  const el = document.getElementById('lista-pagar');
+  if(!el) return;
+  const comprasPend = state.compras.filter(c=>(c.metodoPago==='fiado'||c.metodoPago==='pagare') && c.estadoPago!=='pagado').map(c=>({...c, tipo:'Compra', ref:c.proveedor||'—', fn:'marcarCompraPagada'}));
+  const gastosPend = state.gastos.filter(g=>(g.metodoPago==='fiado'||g.metodoPago==='pagare') && g.estadoPago!=='pagado').map(g=>({...g, total:g.monto, tipo:'Gasto', ref:g.concepto, fn:'marcarGastoPagado'}));
+  const todas = [...comprasPend, ...gastosPend].sort((a,b)=>b.id-a.id);
+  el.innerHTML = todas.length ? `<div class="table-scroll"><table><thead><tr><th>Tipo</th><th>Fecha</th><th>A quién</th><th class="num">Monto</th><th></th></tr></thead><tbody>${todas.map(x=>
+    `<tr><td>${x.tipo}</td><td>${x.fecha}</td><td>${x.ref}</td><td class="num">${fmt(x.total)}</td><td><button class="mini" onclick="${x.fn}(${x.id})">Marcar pagado</button></td></tr>`
+  ).join('')}</tbody></table></div>` : '<div class="empty">No hay cuentas pendientes de pago.</div>';
 }
 function marcarVentaPagada(id){
   const v = state.ventas.find(x=>x.id===id);
@@ -3149,6 +3203,7 @@ function marcarVentaPagada(id){
 
 function render(){
   renderCuentasPorCobrar();
+  renderCuentasPorPagar();
   renderSugerenciaEmpaque();
   renderRestock();
   renderStockBajo();
@@ -3208,7 +3263,7 @@ function render(){
   document.getElementById('lista-ventas').innerHTML = ventasF.length ? `<div class="table-scroll"><table><thead><tr><th>Cód.</th><th>Fecha</th><th>Productos</th><th>Cliente</th><th>Pago</th><th class="num">Desc.</th><th class="num">Base</th><th class="num">Impuesto</th><th class="num">Total</th><th class="center">Envío</th><th class="center">Enviado</th><th></th></tr></thead><tbody>${ventasF.map(v=>{
     const resumenItems = v.items.map(it=>`<span class="code" style="margin-right:2px;">${it.codigo||'—'}</span>${it.cantidad}x ${it.producto}${it.promoAplicada?' '+ICONO_TAG:''}`).join('<br>');
     const nombrePago = {efectivo:'Efectivo',tarjeta:'Tarjeta',transferencia:'Transferencia',pagare:'Pagaré',fiado:'Fiado'}[v.metodoPago] || v.metodoPago;
-    const pagoCelda = v.metodoPago==='fiado' ? `${nombrePago} <span class="tag ${v.estadoPago==='pagado'?'ok':'low'}">${v.estadoPago==='pagado'?'Pagado':'Pendiente'}</span>` : nombrePago;
+    const pagoCelda = (v.metodoPago==='fiado'||v.metodoPago==='pagare') ? `${nombrePago} <span class="tag ${v.estadoPago==='pagado'?'ok':'low'}">${v.estadoPago==='pagado'?'Pagado':'Pendiente'}</span>` : nombrePago;
     return `<tr><td><span class="code">${v.codigoVenta}</span></td><td>${v.fecha}</td><td>${resumenItems}${v.vendedorAplicado?` <span class="tag ok">${ICONO_PERSONA} Cód. vendedor</span>`:''}${v.historial.length?` <span class="tag edit" onclick="verHistorial(${v.id})">editado x${v.historial.length}</span>`:''}</td><td>${v.cliente||'—'}<br><span class="hint" style="margin:0;">${ICONO_PERSONA} ${v.registradoPor.nombre}</span></td><td>${pagoCelda}</td><td class="num">${v.descuentoMonto?fmt(v.descuentoMonto):'—'}</td><td class="num">${fmt(v.subtotal)}</td><td class="num">${fmt(v.impuesto)}</td><td class="num">${fmt(v.total)}</td><td class="center">${v.requiereEnvio?`<span class="tag low" style="cursor:pointer;" onclick="verEnvio(${v.id})">${ICONO_CAJA}</span>`:'—'}</td><td class="center"><input type="checkbox" ${v.enviado?'checked':''} onchange="toggleEnviado(${v.id})"></td><td class="actions"><button class="mini" onclick="mostrarTicketPorId(${v.id})">Ticket</button><button class="mini venta-accion-editar" onclick="editarVenta(${v.id})">Editar</button><button class="danger venta-accion-editar" onclick="borrarVenta(${v.id})">Eliminar</button></td></tr>`;
   }).join('')}</tbody></table></div>` : '<div class="empty">No hay ventas con ese filtro.</div>';
 
