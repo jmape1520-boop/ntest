@@ -6,6 +6,7 @@
 <title>MAQUI INVENTORY</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 <script type="module">
   import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
@@ -136,6 +137,9 @@
   .btn-excel{background:var(--gold);white-space:nowrap;flex:0 0 auto;}
   .tabs{display:flex;gap:4px;margin-bottom:0;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px;flex:1;min-width:0;}
   .tabs-row{display:flex;align-items:center;gap:6px;margin-bottom:18px;}
+  .avatar-btn{width:40px;height:40px;border-radius:50%;border:none;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:var(--elev1);flex:0 0 auto;padding:0;min-height:auto;}
+  .menu-perfil{display:none;position:absolute;top:48px;right:0;z-index:20;background:var(--card);border-radius:var(--radius);box-shadow:var(--elev2);padding:14px;width:200px;}
+  .menu-perfil.open{display:block;}
   .menu-toggle{display:flex;align-items:center;gap:5px;padding:9px 14px;border:none;border-radius:999px;background:var(--card);color:var(--ink-soft);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);box-shadow:var(--elev1);flex:0 0 auto;white-space:nowrap;}
   .menu-toggle svg{width:15px;height:15px;stroke:var(--primary-icon);}
   .menu-toggle.open{background:var(--primary);color:#fff;}
@@ -285,10 +289,15 @@
         <span class="hint" id="badge-tienda" style="margin:0;">—</span>
       </div>
     </div>
-    <div class="row" style="flex:0 0 auto;gap:6px;">
-      <button class="btn-excel" id="btn-excel-header" onclick="exportarExcel()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Excel</button>
-      <button class="mini" onclick="abrirCambiarPassword()">Contraseña</button>
-      <button class="secondary" onclick="hacerLogout()">Salir</button>
+    <div class="row" style="flex:0 0 auto;gap:6px;position:relative;">
+      <button class="avatar-btn" id="avatar-btn" onclick="toggleMenuPerfil()" type="button">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+      </button>
+      <div class="menu-perfil" id="menu-perfil">
+        <p class="hint" id="perfil-menu-nombre" style="margin:0 0 10px;"></p>
+        <button class="mini" style="width:100%;margin-bottom:6px;" onclick="cerrarMenuPerfil(); abrirCambiarPassword();">Cambiar contraseña</button>
+        <button class="secondary" style="width:100%;" onclick="hacerLogout()">Salir</button>
+      </div>
     </div>
   </header>
 
@@ -323,7 +332,21 @@
   </div>
 
   <div class="panel active" id="panel-resumen">
+    <div class="card" id="card-descargar-informe">
+      <div class="row" style="justify-content:space-between;flex-wrap:nowrap;align-items:center;margin:0;">
+        <div>
+          <h3 style="margin:0;">Descargar informe completo</h3>
+          <p class="hint" style="margin:2px 0 0;">Ventas, compras, gastos e inventario, todo en un Excel.</p>
+        </div>
+        <button class="btn-excel" id="btn-excel-header" onclick="exportarExcel()" style="flex:0 0 auto;"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Excel</button>
+      </div>
+    </div>
     <div class="cards" id="metrics"></div>
+    <div class="card">
+      <h3>Stock bajo</h3>
+      <p class="hint">Productos en o por debajo de su punto de reorden — para no tener que revisarlos uno por uno en Inventario.</p>
+      <div id="lista-stock-bajo"></div>
+    </div>
     <div class="card">
       <h3>Cuentas por cobrar</h3>
       <p class="hint">Ventas fiadas — les vendiste a crédito y todavía te deben.</p>
@@ -342,7 +365,7 @@
       <div class="row">
         <input list="codigos-inv" type="text" id="v-codigo" placeholder="Código" oninput="autollenarVenta()">
         <datalist id="codigos-inv"></datalist>
-        <button class="scan" onclick="abrirScanner()" type="button"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px;"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>Escanear</button>
+        <button class="scan" onclick="abrirScanner('autollenarVentaPorCodigoEscaneado')" type="button"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px;"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>Escanear</button>
       </div>
       <div class="row">
         <input list="nombres-inv" type="text" id="v-producto" placeholder="O escribí el nombre del producto" oninput="autollenarVentaPorNombre()">
@@ -409,6 +432,7 @@
       <div class="row">
         <input list="nombres-kardex" type="text" id="kx-producto" placeholder="Buscá un producto por nombre" oninput="cargarKardex()">
         <datalist id="nombres-kardex"></datalist>
+        <button class="scan" onclick="abrirScanner('autollenarKardexPorCodigo')" type="button"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px;"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>Escanear</button>
       </div>
     </div>
     <div class="card" id="kx-card-sucursales" style="display:none;">
@@ -424,9 +448,12 @@
   <div class="panel" id="panel-compras">
     <div class="card">
       <h3>Registrar compra (abastece inventario)</h3>
-      <p class="hint">Solo para artículos que ya existen en tu inventario — la cantidad comprada se suma automáticamente al stock.</p>
+      <p class="hint">Solo para artículos que ya existen en tu inventario — la cantidad comprada se suma automáticamente al stock. Escaneá el QR pegado en el producto para no tener que buscarlo.</p>
       <div class="row">
         <input list="codigos-inv" type="text" id="c-codigo" placeholder="Código del producto" oninput="autollenarCompra()">
+        <button class="scan" onclick="abrirScanner('autollenarCompraPorCodigoEscaneado')" type="button"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px;"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>Escanear</button>
+      </div>
+      <div class="row">
         <input list="nombres-inv" type="text" id="c-producto" placeholder="O escribí el nombre" oninput="autollenarCompraPorNombre()">
       </div>
       <div class="row">
@@ -436,6 +463,13 @@
       <div class="row">
         <input type="text" id="c-proveedor" placeholder="Proveedor (opcional)">
         <button onclick="agregarCompra()">Registrar compra</button>
+      </div>
+    </div>
+    <div class="accordion" id="acc-restock">
+      <div class="accordion-head" onclick="toggleAccordion('acc-restock')"><span>Restock — códigos QR para reabastecer</span><span class="chev">▾</span></div>
+      <div class="accordion-body">
+        <p class="hint">Los productos con QR activado en Inventario aparecen acá para que los tengas a mano al hacer pedidos o verificar existencias en bodega.</p>
+        <div id="lista-restock"></div>
       </div>
     </div>
     <div class="card">
@@ -556,6 +590,9 @@
       </div>
       <div class="row">
         <button class="secondary" type="button" onclick="abrirCopiarProductos()">Copiar productos de otra tienda</button>
+      </div>
+      <div class="row">
+        <button class="secondary" type="button" onclick="descargarTodosLosQR()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Descargar todos los QR (PDF)</button>
       </div>
     </div>
     <div class="card">
@@ -803,7 +840,18 @@ document.addEventListener('click', (e)=>{
   if(menu && menu.classList.contains('open') && !menu.contains(e.target) && e.target !== btn && !btn.contains(e.target)){
     cerrarMenuMas();
   }
+  const menuP = document.getElementById('menu-perfil');
+  const btnP = document.getElementById('avatar-btn');
+  if(menuP && menuP.classList.contains('open') && !menuP.contains(e.target) && e.target !== btnP && !btnP.contains(e.target)){
+    cerrarMenuPerfil();
+  }
 });
+function toggleMenuPerfil(){
+  document.getElementById('menu-perfil').classList.toggle('open');
+}
+function cerrarMenuPerfil(){
+  document.getElementById('menu-perfil').classList.remove('open');
+}
 function toggleEnvioForm(){
   document.getElementById('v-envio-wrap').style.display = document.getElementById('v-requiere-envio').checked ? 'block' : 'none';
 }
@@ -1190,6 +1238,7 @@ async function resolverSesion(user){
 async function finalizarEntrada(nombreTienda){
   document.getElementById('badge-rol').textContent = currentRol === 'propietario' ? 'Propietario' : (currentRol === 'contador' ? 'Contador' : 'Vendedor');
   document.getElementById('badge-tienda').textContent = nombreTienda;
+  document.getElementById('perfil-menu-nombre').textContent = `${currentNombre||'—'} · ${currentRol === 'propietario' ? 'Propietario' : (currentRol === 'contador' ? 'Contador' : 'Vendedor')}`;
   aplicarRestriccionesRol();
   await cargarDatosTienda();
   if(currentRol === 'propietario'){
@@ -2117,7 +2166,9 @@ function borrarVenta(id){
 }
 
 let scannerStream = null;
-function abrirScanner(){
+let scannerAutofillCallback = 'autollenarVentaPorCodigoEscaneado';
+function abrirScanner(callback){
+  scannerAutofillCallback = callback || 'autollenarVentaPorCodigoEscaneado';
   openModal(`
     <h3>Escanear código</h3>
     <video id="scanner-video" autoplay playsinline muted></video>
@@ -2157,9 +2208,9 @@ function loopScanner(){
     if(code && code.data){
       let codigo = code.data.trim();
       try{ const obj = JSON.parse(code.data); if(obj && obj.codigo) codigo = obj.codigo; }catch(e){}
-      document.getElementById('v-codigo').value = codigo.toUpperCase();
+      codigo = codigo.toUpperCase();
       cerrarScanner();
-      autollenarVenta();
+      if(scannerAutofillCallback && typeof window[scannerAutofillCallback]==='function') window[scannerAutofillCallback](codigo);
       return;
     }
   }
@@ -2168,6 +2219,25 @@ function loopScanner(){
 function cerrarScanner(){
   if(scannerStream){ scannerStream.getTracks().forEach(t=>t.stop()); scannerStream = null; }
   closeModal();
+}
+function autollenarVentaPorCodigoEscaneado(codigo){
+  document.getElementById('v-codigo').value = codigo;
+  autollenarVenta();
+}
+function autollenarCompraPorCodigoEscaneado(codigo){
+  document.getElementById('c-codigo').value = codigo;
+  autollenarCompra();
+}
+function autollenarKardexPorCodigo(codigo){
+  const item = state.inventario.find(p=>p.codigo===codigo);
+  let nombre = item ? item.producto : null;
+  if(!nombre){
+    const combo = state.combos.find(c=>c.codigo===codigo);
+    if(combo) nombre = combo.nombre;
+  }
+  if(!nombre){ mostrarAlerta('No se encontró ningún producto con ese código en tu inventario ni en tus combos.'); return; }
+  document.getElementById('kx-producto').value = nombre;
+  cargarKardex();
 }
 
 function verQR(codigo){
@@ -2196,6 +2266,41 @@ function descargarQR(codigo){
   const url = el.tagName === 'CANVAS' ? el.toDataURL('image/png') : el.src;
   const a = document.createElement('a');
   a.href = url; a.download = `QR-${codigo}.png`; a.click();
+}
+
+async function descargarTodosLosQR(){
+  const items = [
+    ...state.inventario.filter(p=>p.qr).map(p=>({codigo:p.codigo, nombre:p.producto})),
+    ...state.combos.filter(c=>c.qr).map(c=>({codigo:c.codigo, nombre:c.nombre}))
+  ];
+  if(!items.length){ mostrarAlerta('Todavía no tenés productos ni combos con "Generar código QR" activado.'); return; }
+  if(!window.jspdf){ mostrarAlerta('No se pudo cargar el generador de PDF. Revisá tu conexión e intentá de nuevo.'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const qrSize = 45, marginX = 15, marginY = 20, gapX = 12, gapY = 22, perRow = 3;
+  let x = marginX, y = marginY, col = 0;
+  const temp = document.createElement('div');
+  temp.style.position = 'fixed'; temp.style.left = '-9999px'; temp.style.top = '0';
+  document.body.appendChild(temp);
+  for(const it of items){
+    temp.innerHTML = '';
+    new QRCode(temp, { text: it.codigo, width: 160, height: 160 });
+    await new Promise(r=>setTimeout(r, 60));
+    const canvasEl = temp.querySelector('canvas');
+    const imgEl = temp.querySelector('img');
+    const dataUrl = canvasEl ? canvasEl.toDataURL('image/png') : (imgEl ? imgEl.src : null);
+    if(dataUrl){
+      doc.addImage(dataUrl, 'PNG', x, y, qrSize, qrSize);
+      doc.setFontSize(8);
+      doc.text(it.nombre.length>22 ? it.nombre.slice(0,22)+'…' : it.nombre, x, y+qrSize+5, { maxWidth: qrSize });
+      doc.text(it.codigo, x, y+qrSize+10);
+    }
+    col++;
+    if(col>=perRow){ col=0; x=marginX; y+=qrSize+gapY; } else { x+=qrSize+gapX; }
+    if(y > 250){ doc.addPage(); y=marginY; x=marginX; col=0; }
+  }
+  document.body.removeChild(temp);
+  doc.save('codigos-qr.pdf');
 }
 
 function exportarExcel(){
@@ -2959,7 +3064,11 @@ function exportarContabilidadExcel(){
   const desde = document.getElementById('ct-desde').value, hasta = document.getElementById('ct-hasta').value;
   if(!desde || !hasta){ mostrarAlerta('Elegí un rango de fechas primero.'); return; }
   const m = calcularMetricasPeriodo(desde, hasta, state.ventas, state.compras, state.gastos);
+  const ventasF = state.ventas.filter(v=>enRango(v.fecha,desde,hasta));
+  const comprasF = state.compras.filter(c=>enRango(c.fecha,desde,hasta));
+  const gastosF = state.gastos.filter(g=>enRango(g.fecha,desde,hasta));
   const wb = XLSX.utils.book_new();
+
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
     {Concepto:'Ventas', Monto:Number(m.ventasTotal.toFixed(2))},
     {Concepto:'Costo de lo comprado', Monto:Number(m.costoVendido.toFixed(2))},
@@ -2969,10 +3078,59 @@ function exportarContabilidadExcel(){
     {Concepto:'Fiado del período', Monto:Number(m.cobrarTotal.toFixed(2))},
     {Concepto:'Fiado pendiente', Monto:Number(m.cobrarPendiente.toFixed(2))},
     {Concepto:'Capital total invertido (histórico)', Monto:Number(state.compras.reduce((s,c)=>s+c.total,0).toFixed(2))}
-  ]), 'Estado de resultados');
+  ]), 'Resumen');
+
+  const filasVentas = [];
+  ventasF.forEach(v=>{
+    v.items.forEach(it=>{
+      filasVentas.push({
+        CodigoVenta:v.codigoVenta, Fecha:v.fecha, Codigo:it.codigo, Producto:it.producto, Cliente:v.cliente,
+        Cantidad:it.cantidad, PrecioUnitario:Number(it.precioUnit.toFixed(2)), MetodoPago:v.metodoPago, EstadoPago:v.estadoPago,
+        RegistradoPor:v.registradoPor.nombre, Base:Number(v.subtotal.toFixed(2)), Impuesto:Number(v.impuesto.toFixed(2)), TotalVenta:Number(v.total.toFixed(2))
+      });
+    });
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filasVentas), 'Ventas');
+
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(comprasF.map(c=>({
+    Fecha:c.fecha, Codigo:c.codigo, Producto:c.producto, Proveedor:c.proveedor, Cantidad:c.cantidad,
+    CostoUnitario:Number(c.costo.toFixed(2)), Total:Number(c.total.toFixed(2))
+  }))), 'Compras');
+
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gastosF.map(g=>({
+    Fecha:g.fecha, Concepto:g.concepto, Categoria:g.categoria, Monto:Number(g.monto.toFixed(2))
+  }))), 'Gastos');
+
+  const fiadosF = ventasF.filter(v=>v.metodoPago==='fiado');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(fiadosF.map(v=>({
+    CodigoVenta:v.codigoVenta, Fecha:v.fecha, Cliente:v.cliente||'—', Estado:v.estadoPago, Monto:Number(v.total.toFixed(2))
+  }))), 'Cuentas por cobrar');
+
   XLSX.writeFile(wb, `contabilidad-${desde}_a_${hasta}.xlsx`);
 }
 
+function renderRestock(){
+  const el = document.getElementById('lista-restock');
+  if(!el) return;
+  const conQR = state.inventario.filter(p=>p.qr);
+  el.innerHTML = conQR.length ? conQR.map(p=>
+    `<div class="row" style="justify-content:space-between;flex-wrap:nowrap;background:var(--paper);padding:8px 10px;border-radius:8px;">
+      <span style="font-size:13px;"><span class="code">${p.codigo}</span> ${p.producto} <span class="hint" style="margin:0;">${fmtCantidad(p.stock,p.unidad)}</span></span>
+      <button class="mini" onclick="verQR('${p.codigo}')">QR</button>
+    </div>`
+  ).join('') : '<div class="empty">Todavía no tenés productos con QR activado.</div>';
+}
+function renderStockBajo(){
+  const el = document.getElementById('lista-stock-bajo');
+  if(!el) return;
+  const bajos = state.inventario.filter(p=>p.stock<=p.reorden);
+  el.innerHTML = bajos.length ? bajos.map(p=>
+    `<div class="row" style="justify-content:space-between;flex-wrap:nowrap;">
+      <span style="font-size:13px;"><span class="code">${p.codigo}</span> ${p.producto}</span>
+      <span class="tag low">${fmtCantidad(p.stock,p.unidad)}</span>
+    </div>`
+  ).join('') : '<div class="empty">Todo tu inventario está por encima de su punto de reorden.</div>';
+}
 function renderCuentasPorCobrar(){
   const el = document.getElementById('lista-cobrar');
   if(!el) return;
@@ -2992,6 +3150,8 @@ function marcarVentaPagada(id){
 function render(){
   renderCuentasPorCobrar();
   renderSugerenciaEmpaque();
+  renderRestock();
+  renderStockBajo();
   const vendibles = state.inventario.filter(p=>!p.esInsumo || p.venderComoExtra);
   document.getElementById('codigos-inv').innerHTML =
     vendibles.map(p=>`<option value="${p.codigo}">`).join('') +
