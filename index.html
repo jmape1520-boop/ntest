@@ -575,7 +575,7 @@
         <input type="text" id="i-codigo-barra" placeholder="Código de barras (opcional)">
         <button class="scan" onclick="abrirScanner('autollenarCodigoBarraProducto')" type="button"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px;"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>Escanear</button>
       </div>
-      <p class="hint">Si escaneás el código de barras del producto, se usa como su identificador — así no hace falta imprimir ni pegar nada nuevo.</p>
+      <p class="hint" id="i-codigo-barra-estado">Si escaneás el código de barras del producto, se usa como su identificador — así no hace falta imprimir ni pegar nada nuevo. Para marcas conocidas, también intentamos traerte el nombre solo.</p>
       <div class="row">
         <input type="number" id="i-stock" placeholder="Stock inicial" min="0">
         <input type="number" id="i-reorden" placeholder="Punto de reorden (ej. 3)" min="0">
@@ -2899,9 +2899,24 @@ async function agregarProducto(){
   }
   finalizarAgregarProducto(datosProducto, codigoBarra || generarCodigo(producto, categoria));
 }
-function autollenarCodigoBarraProducto(codigo){
+async function autollenarCodigoBarraProducto(codigo){
   const campo = document.getElementById('i-codigo-barra');
   if(campo) campo.value = codigo;
+  const estado = document.getElementById('i-codigo-barra-estado');
+  if(estado){ estado.style.color = 'var(--ink-faint)'; estado.textContent = 'Buscando el nombre del producto...'; }
+  try{
+    const resp = await fetch(`https://world.openfoodfacts.net/api/v2/product/${encodeURIComponent(codigo)}.json?fields=product_name`);
+    const data = await resp.json();
+    if(data.status === 1 && data.product && data.product.product_name){
+      const nombreEl = document.getElementById('i-producto');
+      if(nombreEl && !nombreEl.value) nombreEl.value = data.product.product_name.toUpperCase();
+      if(estado){ estado.style.color = 'var(--moss)'; estado.textContent = 'Nombre encontrado — revisalo antes de guardar, por si acaso.'; }
+    } else {
+      if(estado){ estado.style.color = 'var(--ink-faint)'; estado.textContent = 'No encontramos el nombre para ese código — escribilo vos.'; }
+    }
+  }catch(e){
+    if(estado){ estado.style.color = 'var(--ink-faint)'; estado.textContent = 'No se pudo consultar el nombre ahora — escribilo vos.'; }
+  }
 }
 async function buscarProductoEnHermanas(nombreProducto){
   if(!currentCadenaId) return null;
