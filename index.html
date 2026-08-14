@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+¿<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -1281,7 +1281,7 @@ function aplicarRestriccionesRol(){
 
   const tabsPermitidasVendedor = ['ventas','kardex','cocina'];
   const tabsPermitidasContador = ['resumen','ventas','kardex','compras','gastos','contabilidad'];
-  const tabsPermitidasMesero = ['ventas'];
+  const tabsPermitidasMesero = ['ventas','cocina'];
   const tabsPermitidasCocina = ['cocina'];
   document.querySelectorAll('.tab').forEach(t=>{
     let visible = true;
@@ -2337,9 +2337,19 @@ function renderPedidosListosParaCobrar(){
   const listos = state.pedidosCocina.filter(p=>(p.estado==='listo'||p.estado==='entregado') && !p.yaPagado);
   el.innerHTML = listos.length ? listos.map(p=>{
     const total = p.items.reduce((s,it)=>s+it.totalBruto,0);
-    return `<div class="row" style="justify-content:space-between;flex-wrap:nowrap;background:var(--paper);padding:8px 10px;border-radius:8px;margin-bottom:6px;">
-      <span style="font-size:13px;">${etiquetaPedido(p)} <span class="hint" style="margin:0;">${p.hora} · ${fmt(total)}</span></span>
-      <button class="mini" onclick="abrirCobrarPedidoCocina(${p.id})">Cobrar</button>
+    const detalleItems = p.items.map(it=>{
+      const comentario = it.comentario ? ` <span class="hint" style="margin:0;">(${it.comentario})</span>` : '';
+      return `<div class="hint" style="margin:2px 0;">${it.cantidad}x ${it.producto}${comentario} — ${fmt(it.totalBruto)}</div>`;
+    }).join('');
+    return `<div class="accordion" id="acc-pedido-${p.id}" style="margin-bottom:6px;">
+      <div class="accordion-head" style="padding:8px 10px;" onclick="toggleAccordion('acc-pedido-${p.id}')">
+        <span style="font-size:13px;">${etiquetaPedido(p)} <span class="hint" style="margin:0;">${p.hora} · ${fmt(total)}</span></span>
+        <span class="chev">▾</span>
+      </div>
+      <div class="accordion-body">
+        ${detalleItems}
+        <div class="row" style="margin-top:8px;"><button class="mini" onclick="abrirCobrarPedidoCocina(${p.id})">Cobrar</button></div>
+      </div>
     </div>`;
   }).join('') : '<div class="empty">No hay pedidos listos para cobrar.</div>';
 }
@@ -2599,9 +2609,12 @@ function verHistorial(id){
 function borrarVenta(id){
   const v = state.ventas.find(x=>x.id===id);
   if(!v) return;
+  const tieneComida = v.items.some(it=>it.esCombo);
   openModal(`
     <h3>Eliminar venta ${v.codigoVenta}</h3>
-    <p class="hint">El stock se devuelve al inventario. Esta acción queda registrada con el motivo.</p>
+    <p class="hint">Esta acción queda registrada con el motivo.</p>
+    <div class="row"><label class="check-line"><input type="checkbox" id="bv-devolver-stock" ${tieneComida?'':'checked'}> Devolver este stock al inventario</label></div>
+    <p class="hint">${tieneComida ? 'Detectamos combos/recetas en esta venta — si los ingredientes ya se prepararon, no se pueden recuperar. Marcá la casilla solo si de verdad no se llegó a usar nada.' : 'Marcado por defecto porque no lleva combos ni recetas — el producto vuelve tal cual al estante.'}</p>
     <div class="field-group">
       <label>Motivo</label>
       <select id="bv-motivo">
@@ -2628,9 +2641,10 @@ function confirmarBorrarVenta(id){
   const motivoSel = document.getElementById('bv-motivo').value;
   const motivo = motivoSel==='otro' ? document.getElementById('bv-motivo-otro').value.trim() : motivoSel;
   if(!motivo){ document.getElementById('bv-error').textContent = 'Contanos el motivo.'; return; }
+  const devolverStock = document.getElementById('bv-devolver-stock').checked;
   state.eliminacionesVentas = state.eliminacionesVentas || [];
-  state.eliminacionesVentas.unshift({ fecha:new Date().toISOString().slice(0,10), codigoVenta:v.codigoVenta, total:v.total, motivo, eliminadoPor: currentNombre||'—' });
-  v.items.forEach(it=>ajustarStockPorItem(it, 1));
+  state.eliminacionesVentas.unshift({ fecha:new Date().toISOString().slice(0,10), codigoVenta:v.codigoVenta, total:v.total, motivo, devolvioStock:devolverStock, eliminadoPor: currentNombre||'—' });
+  if(devolverStock) v.items.forEach(it=>ajustarStockPorItem(it, 1));
   state.ventas = state.ventas.filter(x=>x.id!==id);
   guardar(); render(); closeModal();
 }
