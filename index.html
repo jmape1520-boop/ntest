@@ -1,4 +1,4 @@
-¿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -7,7 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script src="https://unpkg.com/@zxing/browser@latest"></script>
 <script type="module">
   import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, sendPasswordResetEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
@@ -571,6 +571,11 @@
         <input list="categorias-inv" type="text" id="i-categoria" placeholder="Categoría (ej. Ropa, Comida)">
         <datalist id="categorias-inv"></datalist>
       </div>
+      <div class="row">
+        <input type="text" id="i-codigo-barra" placeholder="Código de barras (opcional)">
+        <button class="scan" onclick="abrirScanner('autollenarCodigoBarraProducto')" type="button"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px;"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>Escanear</button>
+      </div>
+      <p class="hint">Si escaneás el código de barras del producto, se usa como su identificador — así no hace falta imprimir ni pegar nada nuevo.</p>
       <div class="row">
         <input type="number" id="i-stock" placeholder="Stock inicial" min="0">
         <input type="number" id="i-reorden" placeholder="Punto de reorden (ej. 3)" min="0">
@@ -2649,59 +2654,40 @@ function confirmarBorrarVenta(id){
   guardar(); render(); closeModal();
 }
 
-let scannerStream = null;
+let scannerControls = null;
 let scannerAutofillCallback = 'autollenarVentaPorCodigoEscaneado';
-function abrirScanner(callback){
+async function abrirScanner(callback){
   scannerAutofillCallback = callback || 'autollenarVentaPorCodigoEscaneado';
   openModal(`
     <h3>Escanear código</h3>
     <video id="scanner-video" autoplay playsinline muted></video>
-    <canvas id="scanner-canvas" style="display:none;"></canvas>
-    <p class="hint" id="scanner-status">Apuntá la cámara al código QR del producto.</p>
+    <p class="hint" id="scanner-status">Apuntá la cámara al código QR o de barras del producto.</p>
     <div class="row"><button class="secondary" onclick="cerrarScanner()">Cancelar</button></div>
   `);
-  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
-    .then(stream=>{
-      scannerStream = stream;
-      const video = document.getElementById('scanner-video');
-      if(!video) return;
-      video.srcObject = stream;
-      video.play().catch(()=>{});
-      requestAnimationFrame(loopScanner);
-    })
-    .catch(()=>{
-      const st = document.getElementById('scanner-status');
-      if(st) st.textContent = 'No se pudo acceder a la cámara. Revisá los permisos del navegador.';
-    });
-}
-function loopScanner(){
-  const video = document.getElementById('scanner-video');
-  const canvas = document.getElementById('scanner-canvas');
-  if(!video || !canvas || !scannerStream) return;
-  if(typeof jsQR === 'undefined'){
+  if(typeof ZXingBrowser === 'undefined'){
     const st = document.getElementById('scanner-status');
     if(st) st.textContent = 'No se pudo cargar el lector de códigos. Revisá tu conexión a internet y volvé a intentar.';
     return;
   }
-  if(video.readyState === video.HAVE_ENOUGH_DATA){
-    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
-    const code = jsQR(imageData.data, imageData.width, imageData.height);
-    if(code && code.data){
-      let codigo = code.data.trim();
-      try{ const obj = JSON.parse(code.data); if(obj && obj.codigo) codigo = obj.codigo; }catch(e){}
-      codigo = codigo.toUpperCase();
-      cerrarScanner();
-      if(scannerAutofillCallback && typeof window[scannerAutofillCallback]==='function') window[scannerAutofillCallback](codigo);
-      return;
-    }
+  try{
+    const videoEl = document.getElementById('scanner-video');
+    const codeReader = new ZXingBrowser.BrowserMultiFormatReader();
+    scannerControls = await codeReader.decodeFromVideoDevice(undefined, videoEl, (result)=>{
+      if(result){
+        let codigo = result.getText().trim();
+        try{ const obj = JSON.parse(codigo); if(obj && obj.codigo) codigo = obj.codigo; }catch(e){}
+        codigo = codigo.toUpperCase();
+        cerrarScanner();
+        if(scannerAutofillCallback && typeof window[scannerAutofillCallback]==='function') window[scannerAutofillCallback](codigo);
+      }
+    });
+  }catch(e){
+    const st = document.getElementById('scanner-status');
+    if(st) st.textContent = 'No se pudo acceder a la cámara. Revisá los permisos del navegador.';
   }
-  requestAnimationFrame(loopScanner);
 }
 function cerrarScanner(){
-  if(scannerStream){ scannerStream.getTracks().forEach(t=>t.stop()); scannerStream = null; }
+  if(scannerControls){ try{ scannerControls.stop(); }catch(e){} scannerControls = null; }
   closeModal();
 }
 function autollenarVentaPorCodigoEscaneado(codigo){
@@ -2882,6 +2868,7 @@ function onModoConsumoChange(){
 async function agregarProducto(){
   const producto = document.getElementById('i-producto').value.trim().toUpperCase();
   const categoria = document.getElementById('i-categoria').value.trim();
+  const codigoBarra = document.getElementById('i-codigo-barra').value.trim().toUpperCase();
   const stock = parseFloat(document.getElementById('i-stock').value) || 0;
   const reorden = parseFloat(document.getElementById('i-reorden').value) || 0;
   const precioVenta = parseFloat(document.getElementById('i-precio').value) || 0;
@@ -2898,6 +2885,10 @@ async function agregarProducto(){
     mostrarAlerta(`Ya existe un producto llamado "${producto}" en tu inventario. Usá un nombre distinto, o editá el existente.`);
     return;
   }
+  if(codigoBarra && (state.inventario.some(p=>p.codigo===codigoBarra) || state.combos.some(c=>c.codigo===codigoBarra))){
+    mostrarAlerta(`Ese código de barras (${codigoBarra}) ya está en uso por otro producto o combo.`);
+    return;
+  }
   const datosProducto = { producto, categoria, stock, reorden, precioVenta, qr, unidad, tamano, esInsumo, modoConsumo, capacidad, multiplicador, venderComoExtra };
   if(currentCadenaId){
     const encontrado = await buscarProductoEnHermanas(producto);
@@ -2906,7 +2897,11 @@ async function agregarProducto(){
       return;
     }
   }
-  finalizarAgregarProducto(datosProducto, generarCodigo(producto, categoria));
+  finalizarAgregarProducto(datosProducto, codigoBarra || generarCodigo(producto, categoria));
+}
+function autollenarCodigoBarraProducto(codigo){
+  const campo = document.getElementById('i-codigo-barra');
+  if(campo) campo.value = codigo;
 }
 async function buscarProductoEnHermanas(nombreProducto){
   if(!currentCadenaId) return null;
@@ -2955,7 +2950,7 @@ function finalizarAgregarProducto(datosProducto, codigo){
   };
   state.inventario.unshift(nuevo);
   document.getElementById('i-producto').value=''; document.getElementById('i-categoria').value=''; document.getElementById('i-stock').value='';
-  document.getElementById('i-reorden').value=''; document.getElementById('i-precio').value='';
+  document.getElementById('i-reorden').value=''; document.getElementById('i-precio').value=''; document.getElementById('i-codigo-barra').value='';
   document.getElementById('i-qr').checked = false;
   document.getElementById('i-unidad').value = 'unidad';
   document.getElementById('i-tamano').value = 'chico';
