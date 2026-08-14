@@ -366,6 +366,10 @@
   </div>
 
   <div class="panel" id="panel-ventas">
+    <div class="card" id="card-pedidos-cobrar" style="display:none;">
+      <h3>Pedidos listos para cobrar</h3>
+      <div id="lista-pedidos-cobrar"></div>
+    </div>
     <div class="card" id="ventas-registrar-card">
       <h3>Registrar venta <button type="button" class="help-icon" onclick="mostrarAlerta('El precio unitario ya incluye el impuesto. El sistema calcula por separado cuánto es base y cuánto es impuesto.')">?</button></h3>
       <div class="row">
@@ -387,12 +391,15 @@
       </div>
       <div id="v-carrito"></div>
       <div id="v-empaque-wrap" style="display:none;"></div>
+      <div class="row" id="v-mesa-wrap" style="display:none;">
+        <select id="v-mesa"><option value="">Sin mesa</option></select>
+      </div>
       <div class="row" id="v-codigo-vendedor-wrap" style="display:none;">
         <input type="text" id="v-codigo-vendedor" placeholder="Código de vendedor (opcional)" style="text-transform:uppercase;">
       </div>
       <div class="row">
         <input type="text" id="v-cliente" placeholder="Cliente (opcional)">
-        <select id="v-metodo-pago">
+        <select id="v-metodo-pago" class="mesero-oculto">
           <option value="efectivo">Efectivo</option>
           <option value="tarjeta">Tarjeta</option>
           <option value="transferencia">Transferencia</option>
@@ -414,11 +421,11 @@
         </div>
       </div>
       <div class="row">
-        <button onclick="finalizarVenta()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px;"><polyline points="20 6 9 17 4 12"></polyline></svg>Registrar venta</button>
+        <button id="btn-registrar-venta" onclick="finalizarVenta()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px;"><polyline points="20 6 9 17 4 12"></polyline></svg>Registrar venta</button>
         <button class="btn-tool" id="btn-enviar-cocina" style="display:none;" onclick="enviarACocina()" type="button">Enviar a cocina</button>
       </div>
     </div>
-    <div class="card">
+    <div class="card" id="card-historial-ventas">
       <h3>Historial de ventas</h3>
       <div class="filters" id="vf-bar" style="display:none;">
         <span>Filtrar</span>
@@ -784,8 +791,22 @@
     <div class="accordion" id="acc-cocina">
       <div class="accordion-head" onclick="toggleAccordion('acc-cocina')"><span>Cocina</span><span class="chev">▾</span></div>
       <div class="accordion-body">
-        <p class="hint">Para restaurantes: al activarlo, aparece un botón "Enviar a cocina" en Ventas y una pestaña "Cocina" donde tu equipo ve los pedidos entrar antes de cobrar.</p>
+        <p class="hint">Para restaurantes: al activarlo, aparece una pestaña "Cocina" donde tu equipo ve los pedidos, y podés crear cuentas de Mesero y Cocina.</p>
         <div class="row"><label class="check-line"><input type="checkbox" id="c-modulo-cocina" onchange="guardarConfig()"> Activar módulo de cocina</label></div>
+        <div id="cocina-config-extra" style="display:none;">
+          <hr>
+          <div class="field-group">
+            <label>¿Cuándo cobra tu negocio?</label>
+            <select id="c-cobro-cocina" onchange="guardarConfig()">
+              <option value="antes">Antes de cocinar (se cobra al tomar el pedido)</option>
+              <option value="despues">Después de cocinar (se cobra al final)</option>
+            </select>
+          </div>
+          <hr>
+          <p class="hint">Mesas — para que el mesero elija de una lista en vez de escribir.</p>
+          <div id="lista-mesas" style="margin-bottom:8px;"></div>
+          <div class="row"><input type="text" id="nueva-mesa" placeholder="Ej. Mesa 4"><button class="mini" onclick="agregarMesa()">Agregar</button></div>
+        </div>
       </div>
     </div>
 
@@ -811,6 +832,8 @@
           <select id="ve-rol">
             <option value="vendedor">Vendedor</option>
             <option value="contador">Contador</option>
+            <option value="mesero" id="ve-rol-mesero" style="display:none;">Mesero</option>
+            <option value="cocina" id="ve-rol-cocina" style="display:none;">Cocina</option>
           </select>
           <button onclick="crearVendedorUI()">Crear cuenta</button>
         </div>
@@ -942,6 +965,9 @@ function normalizarEstado(){
   state.combos = state.combos || [];
   state.ajustesInventario = state.ajustesInventario || [];
   state.pedidosCocina = state.pedidosCocina || [];
+  state.eliminacionesVentas = state.eliminacionesVentas || [];
+  state.mesas = state.mesas || [];
+  if(state.config.cobroCocina===undefined) state.config.cobroCocina = 'despues';
   if(state.config.moduloCocina===undefined) state.config.moduloCocina = false;
   state.calculosCosto = state.calculosCosto || [];
   state.combos.forEach(c=>{ if(c.activo===undefined) c.activo=true; if(c.qr===undefined) c.qr=false; c.componentes.forEach(comp=>{ if(comp.tipo===undefined) comp.tipo='producto'; }); });
@@ -987,6 +1013,7 @@ async function cargarDatosTienda(){
   document.getElementById('cv-activo').checked = state.codigoVendedor.activo;
   document.getElementById('c-sugerencia-empaque').checked = state.config.sugerenciaEmpaque;
   document.getElementById('c-modulo-cocina').checked = state.config.moduloCocina;
+  document.getElementById('c-cobro-cocina').value = state.config.cobroCocina;
   aplicarVisibilidadCocina();
   render();
 }
@@ -1166,16 +1193,22 @@ async function confirmarCambiarPassword(){
 function aplicarRestriccionesRol(){
   const esVendedor = currentRol === 'vendedor';
   const esContador = currentRol === 'contador';
-  document.querySelectorAll('.propietario-only').forEach(el=>{ el.style.display = (esVendedor||esContador) ? 'none' : ''; });
-  document.getElementById('btn-excel-header').style.display = esVendedor ? 'none' : 'inline-flex';
+  const esMesero = currentRol === 'mesero';
+  const esCocina = currentRol === 'cocina';
+  document.querySelectorAll('.propietario-only').forEach(el=>{ el.style.display = (esVendedor||esContador||esMesero||esCocina) ? 'none' : ''; });
+  document.getElementById('btn-excel-header').style.display = (esVendedor||esMesero||esCocina) ? 'none' : 'inline-flex';
   document.getElementById('v-codigo-vendedor-wrap').style.display = esVendedor ? 'flex' : 'none';
 
   const tabsPermitidasVendedor = ['ventas','kardex','cocina'];
   const tabsPermitidasContador = ['resumen','ventas','kardex','compras','gastos','contabilidad'];
+  const tabsPermitidasMesero = ['ventas'];
+  const tabsPermitidasCocina = ['cocina'];
   document.querySelectorAll('.tab').forEach(t=>{
     let visible = true;
     if(esVendedor) visible = tabsPermitidasVendedor.includes(t.dataset.tab);
     else if(esContador) visible = tabsPermitidasContador.includes(t.dataset.tab);
+    else if(esMesero) visible = tabsPermitidasMesero.includes(t.dataset.tab);
+    else if(esCocina) visible = tabsPermitidasCocina.includes(t.dataset.tab);
     t.style.display = visible ? 'flex' : 'none';
   });
   document.querySelectorAll('.menu-mas-group').forEach(g=>{
@@ -1190,7 +1223,14 @@ function aplicarRestriccionesRol(){
   if(ventasSoloLectura) ventasSoloLectura.style.display = esContador ? 'none' : '';
   document.querySelectorAll('.venta-accion-editar').forEach(el=>{ el.style.display = esContador ? 'none' : ''; });
 
-  if(esVendedor){
+  // Mesero: no ve precios ni método de pago, no registra la venta, solo manda a cocina
+  document.querySelectorAll('.mesero-oculto').forEach(el=>{ el.style.display = esMesero ? 'none' : ''; });
+  const btnRegistrarVenta = document.getElementById('btn-registrar-venta');
+  if(btnRegistrarVenta) btnRegistrarVenta.style.display = esMesero ? 'none' : 'inline-flex';
+  const cardHistorialVentas = document.getElementById('card-historial-ventas');
+  if(cardHistorialVentas) cardHistorialVentas.style.display = esMesero ? 'none' : '';
+
+  if(esVendedor || esMesero){
     document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
     document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
     document.getElementById('panel-ventas').classList.add('active');
@@ -1200,6 +1240,11 @@ function aplicarRestriccionesRol(){
     document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
     document.getElementById('panel-resumen').classList.add('active');
     document.querySelector('.tab[data-tab="resumen"]').classList.add('active');
+  } else if(esCocina){
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    document.getElementById('panel-cocina').classList.add('active');
+    document.querySelector('.tab[data-tab="cocina"]').classList.add('active');
   }
 }
 
@@ -1314,10 +1359,13 @@ async function resolverSesion(user){
   finalizarEntrada(tienda ? tienda.nombre : '—');
 }
 
+function etiquetaRol(rol){
+  return { propietario:'Propietario', contador:'Contador', mesero:'Mesero', cocina:'Cocina' }[rol] || 'Vendedor';
+}
 async function finalizarEntrada(nombreTienda){
-  document.getElementById('badge-rol').textContent = currentRol === 'propietario' ? 'Propietario' : (currentRol === 'contador' ? 'Contador' : 'Vendedor');
+  document.getElementById('badge-rol').textContent = etiquetaRol(currentRol);
   document.getElementById('badge-tienda').textContent = nombreTienda;
-  document.getElementById('perfil-menu-nombre').textContent = `${currentNombre||'—'} · ${currentRol === 'propietario' ? 'Propietario' : (currentRol === 'contador' ? 'Contador' : 'Vendedor')}`;
+  document.getElementById('perfil-menu-nombre').textContent = `${currentNombre||'—'} · ${etiquetaRol(currentRol)}`;
   aplicarRestriccionesRol();
   await cargarDatosTienda();
   if(currentRol === 'propietario'){
@@ -1384,6 +1432,8 @@ async function refrescarListaVendedores(){
         <select onchange="cambiarRolMiembro('${v.uid}', this.value)">
           <option value="vendedor" ${v.rol==='vendedor'?'selected':''}>Vendedor</option>
           <option value="contador" ${v.rol==='contador'?'selected':''}>Contador</option>
+          <option value="mesero" ${v.rol==='mesero'?'selected':''} style="${state.config.moduloCocina?'':'display:none;'}">Mesero</option>
+          <option value="cocina" ${v.rol==='cocina'?'selected':''} style="${state.config.moduloCocina?'':'display:none;'}">Cocina</option>
         </select>
         <button class="danger" onclick="eliminarMiembroEquipo('${v.uid}', '${v.nombre.replace(/'/g,"\\'")}')">Eliminar</button>
       </div>
@@ -1650,14 +1700,52 @@ function guardarConfig(){
   state.config.moneda = document.getElementById('c-moneda').value || '$';
   state.config.sugerenciaEmpaque = document.getElementById('c-sugerencia-empaque').checked;
   state.config.moduloCocina = document.getElementById('c-modulo-cocina').checked;
+  state.config.cobroCocina = document.getElementById('c-cobro-cocina').value;
   guardar(); render(); aplicarVisibilidadCocina();
 }
 function aplicarVisibilidadCocina(){
   const activo = !!state.config.moduloCocina && currentRol !== 'contador';
   const tabCocina = document.getElementById('tab-cocina');
   const btnCocina = document.getElementById('btn-enviar-cocina');
+  const extra = document.getElementById('cocina-config-extra');
+  const mesaWrap = document.getElementById('v-mesa-wrap');
+  const cardCobrar = document.getElementById('card-pedidos-cobrar');
+  const cobroDespues = state.config.cobroCocina==='despues';
   if(tabCocina) tabCocina.style.display = activo ? 'flex' : 'none';
-  if(btnCocina) btnCocina.style.display = activo ? 'inline-flex' : 'none';
+  if(btnCocina) btnCocina.style.display = (activo && cobroDespues) ? 'inline-flex' : 'none';
+  if(mesaWrap) mesaWrap.style.display = activo ? 'flex' : 'none';
+  if(cardCobrar) cardCobrar.style.display = (activo && cobroDespues) ? '' : 'none';
+  if(extra) extra.style.display = state.config.moduloCocina ? 'block' : 'none';
+  const opcionMesero = document.getElementById('ve-rol-mesero');
+  const opcionCocina = document.getElementById('ve-rol-cocina');
+  if(opcionMesero) opcionMesero.style.display = state.config.moduloCocina ? '' : 'none';
+  if(opcionCocina) opcionCocina.style.display = state.config.moduloCocina ? '' : 'none';
+}
+function agregarMesa(){
+  const nombre = document.getElementById('nueva-mesa').value.trim();
+  if(!nombre) return;
+  if(state.mesas.includes(nombre)){ mostrarAlerta('Esa mesa ya existe.'); return; }
+  state.mesas.push(nombre);
+  document.getElementById('nueva-mesa').value = '';
+  guardar(); render();
+}
+function borrarMesa(nombre){
+  state.mesas = state.mesas.filter(m=>m!==nombre);
+  guardar(); render();
+}
+function renderMesas(){
+  const el = document.getElementById('lista-mesas');
+  if(el){
+    el.innerHTML = state.mesas.length ? state.mesas.map(m=>
+      `<span class="tag edit" style="margin:0 6px 6px 0;display:inline-flex;align-items:center;gap:6px;">${m} <button class="mini" style="padding:2px 6px;min-height:auto;" onclick="borrarMesa('${m.replace(/'/g,"\\'")}')">${ICONO_X}</button></span>`
+    ).join('') : '<p class="empty">Todavía no agregás mesas.</p>';
+  }
+  const sel = document.getElementById('v-mesa');
+  if(sel){
+    const actual = sel.value;
+    sel.innerHTML = '<option value="">Sin mesa</option>' + state.mesas.map(m=>`<option value="${m}">${m}</option>`).join('');
+    sel.value = state.mesas.includes(actual) ? actual : '';
+  }
 }
 function limpiarFiltro(p){
   document.getElementById(p+'f-desde').value='';
@@ -2064,14 +2152,19 @@ function enviarACocina(){
   const pendiente = leerItemFormulario();
   if(pendiente){ carritoActual.push(pendiente); limpiarCamposItem(); }
   if(!carritoActual.length){ mostrarAlerta('Agregá al menos un producto antes de enviar a cocina.'); return; }
+  const mesa = document.getElementById('v-mesa') ? document.getElementById('v-mesa').value : '';
   const cliente = document.getElementById('v-cliente').value.trim();
-  const pedido = { id:Date.now(), fecha:new Date().toISOString().slice(0,10), hora:new Date().toLocaleTimeString('es', {hour:'2-digit',minute:'2-digit'}), items: carritoActual.map(it=>({...it})), cliente, estado:'pendiente', registradoPor: currentNombre||'—' };
+  const pedido = { id:Date.now(), fecha:new Date().toISOString().slice(0,10), hora:new Date().toLocaleTimeString('es', {hour:'2-digit',minute:'2-digit'}), items: carritoActual.map(it=>({...it})), mesa, cliente, estado:'pendiente', registradoPor: currentNombre||'—' };
   state.pedidosCocina.unshift(pedido);
   carritoActual = [];
   renderCarrito();
   document.getElementById('v-cliente').value='';
+  if(document.getElementById('v-mesa')) document.getElementById('v-mesa').value='';
   guardar(); render();
   mostrarAlerta('Pedido enviado a cocina.');
+}
+function etiquetaPedido(p){
+  return p.mesa ? p.mesa : (p.cliente || 'Sin mesa/cliente');
 }
 function renderCocina(){
   const el = document.getElementById('lista-cocina');
@@ -2082,13 +2175,15 @@ function renderCocina(){
       const comentario = it.comentario ? ` <span class="hint" style="margin:0;">(${it.comentario})</span>` : '';
       return `<div class="hint" style="margin:2px 0;">${it.cantidad}x ${it.producto}${comentario}</div>`;
     }).join('');
+    const etiquetaEstado = {pendiente:'Pendiente', preparando:'Preparando', listo:'Listo', entregado:'Entregado'}[p.estado];
     const botones = p.estado==='pendiente' ? `<button class="mini" onclick="avanzarPedidoCocina(${p.id},'preparando')">Empezar</button>`
       : p.estado==='preparando' ? `<button class="mini" onclick="avanzarPedidoCocina(${p.id},'listo')">Listo</button>`
-      : `<button onclick="abrirCobrarPedidoCocina(${p.id})">Cobrar</button>`;
+      : p.estado==='listo' ? `<button class="mini" onclick="avanzarPedidoCocina(${p.id},'entregado')">Entregado</button>`
+      : `<span class="hint" style="margin:0;">${p.yaPagado ? 'Ya pagado' : 'Esperando cobro en Ventas'}</span>`;
     return `<div class="card" style="margin-bottom:8px;">
       <div class="row" style="justify-content:space-between;flex-wrap:nowrap;">
-        <strong style="font-size:13px;">${p.hora}${p.cliente?' — '+p.cliente:''}</strong>
-        <span class="tag ${p.estado==='listo'?'ok':'edit'}">${p.estado==='pendiente'?'Pendiente':p.estado==='preparando'?'Preparando':'Listo'}</span>
+        <strong style="font-size:13px;">${p.hora} — ${etiquetaPedido(p)}</strong>
+        <span class="tag ${p.estado==='listo'||p.estado==='entregado'?'ok':'edit'}">${etiquetaEstado}</span>
       </div>
       ${items}
       <div class="row" style="margin-top:6px;">${botones}</div>
@@ -2102,9 +2197,23 @@ function avanzarPedidoCocina(id, nuevoEstado){
   p.estado = nuevoEstado;
   guardar(); render();
 }
+function renderPedidosListosParaCobrar(){
+  const el = document.getElementById('lista-pedidos-cobrar');
+  if(!el) return;
+  const listos = state.pedidosCocina.filter(p=>(p.estado==='listo'||p.estado==='entregado') && !p.yaPagado);
+  el.innerHTML = listos.length ? listos.map(p=>{
+    const total = p.items.reduce((s,it)=>s+it.totalBruto,0);
+    return `<div class="row" style="justify-content:space-between;flex-wrap:nowrap;background:var(--paper);padding:8px 10px;border-radius:8px;margin-bottom:6px;">
+      <span style="font-size:13px;">${etiquetaPedido(p)} <span class="hint" style="margin:0;">${p.hora} · ${fmt(total)}</span></span>
+      <button class="mini" onclick="abrirCobrarPedidoCocina(${p.id})">Cobrar</button>
+    </div>`;
+  }).join('') : '<div class="empty">No hay pedidos listos para cobrar.</div>';
+}
 function abrirCobrarPedidoCocina(id){
+  const p = state.pedidosCocina.find(x=>x.id===id);
+  if(!p) return;
   openModal(`
-    <h3>Cobrar pedido</h3>
+    <h3>Cobrar — ${etiquetaPedido(p)}</h3>
     <div class="field-group">
       <label>Método de pago</label>
       <select id="pcc-metodo-pago">
@@ -2133,7 +2242,7 @@ function confirmarCobrarPedidoCocina(id){
   const subtotal = totalBruto / (1 + state.config.tasa/100);
   const impuesto = totalBruto - subtotal;
   const ventaId = Date.now();
-  const venta = { id:ventaId, codigoVenta:'V-'+String(ventaId).slice(-6), fecha:new Date().toISOString().slice(0,10), items:p.items, cliente:p.cliente, metodoPago, estadoPago: esPendienteVenta?'pendiente':'pagado', fechaPago: esPendienteVenta?null:new Date().toISOString().slice(0,10), registradoPor:{uid:currentUid, nombre:currentNombre||'—'}, totalBruto, vendedorAplicado:false, vendedorDescuentoMonto:0, descuentoMonto:0, subtotal, impuesto, total:totalBruto, historial:[], enviado:false, requiereEnvio:false, envio:null, insumosUsados:[] };
+  const venta = { id:ventaId, codigoVenta:'V-'+String(ventaId).slice(-6), fecha:new Date().toISOString().slice(0,10), items:p.items, cliente:p.cliente||p.mesa, metodoPago, estadoPago: esPendienteVenta?'pendiente':'pagado', fechaPago: esPendienteVenta?null:new Date().toISOString().slice(0,10), registradoPor:{uid:currentUid, nombre:currentNombre||'—'}, totalBruto, vendedorAplicado:false, vendedorDescuentoMonto:0, descuentoMonto:0, subtotal, impuesto, total:totalBruto, historial:[], enviado:false, requiereEnvio:false, envio:null, insumosUsados:[] };
   state.ventas.unshift(venta);
   p.items.forEach(it=>{
     if(it.esCombo){
@@ -2204,10 +2313,18 @@ function finalizarVenta(){
     const item = state.inventario.find(p=>p.codigo===ins.codigo);
     if(item) item.stock = Math.max(0, item.stock - ins.cantidad);
   });
+  if(state.config.moduloCocina && state.config.cobroCocina==='antes'){
+    const itemsParaCocina = venta.items.filter(it=>it.esCombo);
+    if(itemsParaCocina.length){
+      const mesa = document.getElementById('v-mesa') ? document.getElementById('v-mesa').value : '';
+      state.pedidosCocina.unshift({ id:Date.now()+1, fecha:venta.fecha, hora:new Date().toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'}), items:itemsParaCocina, mesa, cliente, estado:'pendiente', registradoPor: currentNombre||'—', yaPagado:true, ventaCodigo:venta.codigoVenta });
+    }
+  }
   carritoActual = [];
   renderCarrito();
   ['v-cliente','v-envio-direccion','v-envio-telefono','v-envio-transportista','v-envio-notas'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('v-metodo-pago').value = 'efectivo';
+  if(document.getElementById('v-mesa')) document.getElementById('v-mesa').value='';
   if(document.getElementById('v-codigo-vendedor')) document.getElementById('v-codigo-vendedor').value='';
   document.getElementById('v-requiere-envio').checked=false;
   toggleEnvioForm();
@@ -2346,11 +2463,42 @@ function verHistorial(id){
   mostrarAlerta(`<strong>Historial de cambios</strong>\n\n${texto}`);
 }
 function borrarVenta(id){
-  confirmarAccion('¿Eliminar esta venta? El stock se devolverá al inventario.', ()=>{
-    const v = state.ventas.find(x=>x.id===id);
-    v.items.forEach(it=>ajustarStockPorItem(it, 1));
-    state.ventas = state.ventas.filter(x=>x.id!==id); guardar(); render();
+  const v = state.ventas.find(x=>x.id===id);
+  if(!v) return;
+  openModal(`
+    <h3>Eliminar venta ${v.codigoVenta}</h3>
+    <p class="hint">El stock se devuelve al inventario. Esta acción queda registrada con el motivo.</p>
+    <div class="field-group">
+      <label>Motivo</label>
+      <select id="bv-motivo">
+        <option value="Error al registrar">Error al registrar</option>
+        <option value="Cliente se arrepintió">Cliente se arrepintió</option>
+        <option value="Producto equivocado">Producto equivocado</option>
+        <option value="otro">Otro</option>
+      </select>
+    </div>
+    <div class="field-group" id="bv-motivo-otro-wrap" style="display:none;"><input type="text" id="bv-motivo-otro" placeholder="Contanos qué pasó"></div>
+    <p class="hint" id="bv-error" style="color:var(--rust);"></p>
+    <div class="row">
+      <button class="secondary" onclick="closeModal()">Cancelar</button>
+      <button class="danger" onclick="confirmarBorrarVenta(${id})">Eliminar venta</button>
+    </div>
+  `);
+  document.getElementById('bv-motivo').addEventListener('change', function(){
+    document.getElementById('bv-motivo-otro-wrap').style.display = this.value==='otro' ? 'block' : 'none';
   });
+}
+function confirmarBorrarVenta(id){
+  const v = state.ventas.find(x=>x.id===id);
+  if(!v) return;
+  const motivoSel = document.getElementById('bv-motivo').value;
+  const motivo = motivoSel==='otro' ? document.getElementById('bv-motivo-otro').value.trim() : motivoSel;
+  if(!motivo){ document.getElementById('bv-error').textContent = 'Contanos el motivo.'; return; }
+  state.eliminacionesVentas = state.eliminacionesVentas || [];
+  state.eliminacionesVentas.unshift({ fecha:new Date().toISOString().slice(0,10), codigoVenta:v.codigoVenta, total:v.total, motivo, eliminadoPor: currentNombre||'—' });
+  v.items.forEach(it=>ajustarStockPorItem(it, 1));
+  state.ventas = state.ventas.filter(x=>x.id!==id);
+  guardar(); render(); closeModal();
 }
 
 let scannerStream = null;
@@ -3407,6 +3555,8 @@ function render(){
   renderCuentasPorCobrar();
   renderCuentasPorPagar();
   renderCocina();
+  renderMesas();
+  renderPedidosListosParaCobrar();
   renderSugerenciaEmpaque();
   renderRestock();
   renderStockBajo();
