@@ -812,6 +812,7 @@
               <option value="despues">Después de cocinar (se cobra al final)</option>
             </select>
           </div>
+          <div class="row"><label class="check-line"><input type="checkbox" id="c-mesero-cobra" onchange="guardarConfig()"> Permitir que el Mesero también cobre</label></div>
           <hr>
           <p class="hint">Mesas — para que el mesero elija de una lista en vez de escribir.</p>
           <div id="lista-mesas" style="margin-bottom:8px;"></div>
@@ -1015,7 +1016,7 @@ function estadoVacioBase(){
     ventas: [], compras: [], gastos: [], inventario: [], promociones: [], combos: [],
     calculosCosto: [], ajustesInventario: [], pedidosCocina: [], mesas: [], eliminacionesVentas: [],
     codigoVendedor: { codigo:'', tipo:'pct', valor:0, limiteMensual:0, activo:false, usos:{mesActual:'', cantidad:0} },
-    config: { tasa: 13, moneda: '$', sugerenciaEmpaque:false, moduloCocina:false, cobroCocina:'despues' }
+    config: { tasa: 13, moneda: '$', sugerenciaEmpaque:false, moduloCocina:false, cobroCocina:'despues', meseroPuedeCobrar:false }
   };
 }
 async function cargarDatosTienda(){
@@ -1045,6 +1046,11 @@ async function cargarDatosTienda(){
         const p = JSON.parse(rawPedidos);
         state.pedidosCocina = p.pedidosCocina || [];
         state.mesas = p.mesas || [];
+        if(currentRol === 'mesero' || currentRol === 'cocina'){
+          state.config.moduloCocina = p.moduloCocina!==undefined ? p.moduloCocina : true;
+          state.config.cobroCocina = p.cobroCocina || 'despues';
+          state.config.meseroPuedeCobrar = !!p.meseroPuedeCobrar;
+        }
       } else {
         state.pedidosCocina = state.pedidosCocina || [];
         state.mesas = state.mesas || [];
@@ -1062,6 +1068,7 @@ async function cargarDatosTienda(){
   if(document.getElementById('c-sugerencia-empaque')) document.getElementById('c-sugerencia-empaque').checked = state.config.sugerenciaEmpaque;
   if(document.getElementById('c-modulo-cocina')) document.getElementById('c-modulo-cocina').checked = state.config.moduloCocina;
   if(document.getElementById('c-cobro-cocina')) document.getElementById('c-cobro-cocina').value = state.config.cobroCocina;
+  if(document.getElementById('c-mesero-cobra')) document.getElementById('c-mesero-cobra').checked = state.config.meseroPuedeCobrar;
   aplicarVisibilidadCocina();
   render();
 }
@@ -1085,12 +1092,12 @@ async function guardar(){
   if(!currentTiendaId) return;
   try{
     if(currentRol === 'mesero' || currentRol === 'cocina'){
-      await window.fb.guardarPedidosTienda(currentTiendaId, { mesas: state.mesas, pedidosCocina: state.pedidosCocina });
+      await window.fb.guardarPedidosTienda(currentTiendaId, { mesas: state.mesas, pedidosCocina: state.pedidosCocina, moduloCocina: state.config.moduloCocina, cobroCocina: state.config.cobroCocina, meseroPuedeCobrar: state.config.meseroPuedeCobrar });
       return;
     }
     const { pedidosCocina, mesas, ...restoState } = state;
     await window.fb.guardarDatosTienda(currentTiendaId, restoState);
-    await window.fb.guardarPedidosTienda(currentTiendaId, { mesas: state.mesas, pedidosCocina: state.pedidosCocina });
+    await window.fb.guardarPedidosTienda(currentTiendaId, { mesas: state.mesas, pedidosCocina: state.pedidosCocina, moduloCocina: state.config.moduloCocina, cobroCocina: state.config.cobroCocina, meseroPuedeCobrar: state.config.meseroPuedeCobrar });
     await sincronizarCatalogoTienda();
   }catch(e){ console.error(e); }
 }
@@ -1495,6 +1502,7 @@ async function refrescarListaVendedores(){
   const equipo = (await window.fb.listarVendedores(currentTiendaId)).filter(v=>v.rol!=='eliminado');
   const el = document.getElementById('lista-vendedores');
   if(!el) return;
+  window._equipoTemp = equipo;
   el.innerHTML = equipo.length ? equipo.map(v=>
     `<div class="card" style="margin-bottom:8px;padding:10px 12px;">
       <div class="row" style="justify-content:space-between;flex-wrap:nowrap;margin-bottom:6px;">
@@ -1508,10 +1516,46 @@ async function refrescarListaVendedores(){
           <option value="mesero" ${v.rol==='mesero'?'selected':''} style="${state.config.moduloCocina?'':'display:none;'}">Mesero</option>
           <option value="cocina" ${v.rol==='cocina'?'selected':''} style="${state.config.moduloCocina?'':'display:none;'}">Cocina</option>
         </select>
+      </div>
+      <div class="row">
+        <button class="mini" onclick="abrirEditarMiembro('${v.uid}')">Editar</button>
         <button class="danger" onclick="eliminarMiembroEquipo('${v.uid}', '${v.nombre.replace(/'/g,"\\'")}')">Eliminar</button>
       </div>
     </div>`
   ).join('') : '<p class="empty">Todavía no creás vendedores ni contadores.</p>';
+}
+function abrirEditarMiembro(uid){
+  const v = (window._equipoTemp||[]).find(x=>x.uid===uid);
+  if(!v) return;
+  openModal(`
+    <h3>Editar — ${v.nombre}</h3>
+    <div class="field-group"><label>Nombre</label><input type="text" id="em-nombre" value="${v.nombre}"></div>
+    <p class="hint">El correo (${v.email}) no se puede cambiar desde acá.</p>
+    <hr>
+    <p class="hint">¿Se le olvidó la contraseña? No podés verla ni ponerle una vos mismo — pero podés mandarle un correo para que la restablezca ella.</p>
+    <button class="secondary" type="button" onclick="restablecerPasswordMiembro('${v.email}')">Enviar correo para restablecer contraseña</button>
+    <p class="hint" id="em-reset-estado"></p>
+    <div class="row" style="margin-top:14px;">
+      <button class="secondary" onclick="closeModal()">Cancelar</button>
+      <button onclick="guardarEdicionMiembro('${uid}')">Guardar cambios</button>
+    </div>
+  `);
+}
+async function guardarEdicionMiembro(uid){
+  const nombre = document.getElementById('em-nombre').value.trim();
+  if(!nombre){ mostrarAlerta('El nombre no puede quedar vacío.'); return; }
+  await window.fb.guardarUsuario(uid, { nombre });
+  await refrescarListaVendedores();
+  closeModal();
+}
+async function restablecerPasswordMiembro(email){
+  const estado = document.getElementById('em-reset-estado');
+  try{
+    await window.fb.recuperarPassword(email);
+    if(estado){ estado.style.color = 'var(--moss)'; estado.textContent = `Correo enviado a ${email}.`; }
+  }catch(e){
+    if(estado){ estado.style.color = 'var(--rust)'; estado.textContent = mensajeErrorAuth(e); }
+  }
 }
 async function toggleVendedorActivo(uid, nuevoEstado){
   await window.fb.guardarUsuario(uid, { activo: nuevoEstado });
@@ -1774,6 +1818,7 @@ function guardarConfig(){
   state.config.sugerenciaEmpaque = document.getElementById('c-sugerencia-empaque').checked;
   state.config.moduloCocina = document.getElementById('c-modulo-cocina').checked;
   state.config.cobroCocina = document.getElementById('c-cobro-cocina').value;
+  state.config.meseroPuedeCobrar = document.getElementById('c-mesero-cobra').checked;
   guardar(); render(); aplicarVisibilidadCocina();
 }
 function aplicarVisibilidadCocina(){
@@ -1785,14 +1830,26 @@ function aplicarVisibilidadCocina(){
   const cardCobrar = document.getElementById('card-pedidos-cobrar');
   const cobroDespues = state.config.cobroCocina==='despues';
   if(tabCocina) tabCocina.style.display = activo ? 'flex' : 'none';
-  if(btnCocina) btnCocina.style.display = (activo && cobroDespues) ? 'inline-flex' : 'none';
   if(mesaWrap) mesaWrap.style.display = activo ? 'flex' : 'none';
-  if(cardCobrar) cardCobrar.style.display = (activo && cobroDespues) ? '' : 'none';
   if(extra) extra.style.display = state.config.moduloCocina ? 'block' : 'none';
   const opcionMesero = document.getElementById('ve-rol-mesero');
   const opcionCocina = document.getElementById('ve-rol-cocina');
   if(opcionMesero) opcionMesero.style.display = state.config.moduloCocina ? '' : 'none';
   if(opcionCocina) opcionCocina.style.display = state.config.moduloCocina ? '' : 'none';
+
+  const esMeseroActual = currentRol === 'mesero';
+  const meseroPuedeCobrar = !!state.config.meseroPuedeCobrar;
+  // "Enviar a cocina" y el campo de mesa aplican a cualquiera que tome pedidos (vendedor, mesero, propietario)
+  if(btnCocina) btnCocina.style.display = (activo && cobroDespues) ? 'inline-flex' : 'none';
+  if(cardCobrar) cardCobrar.style.display = (activo && cobroDespues && (!esMeseroActual || meseroPuedeCobrar)) ? '' : 'none';
+  if(esMeseroActual){
+    const permitirCobro = meseroPuedeCobrar;
+    document.querySelectorAll('.mesero-oculto').forEach(el=>{ el.style.display = permitirCobro ? '' : 'none'; });
+    const btnRegistrarVenta = document.getElementById('btn-registrar-venta');
+    if(btnRegistrarVenta) btnRegistrarVenta.style.display = permitirCobro ? 'inline-flex' : 'none';
+    const cardHistorialVentas = document.getElementById('card-historial-ventas');
+    if(cardHistorialVentas) cardHistorialVentas.style.display = permitirCobro ? '' : 'none';
+  }
 }
 function agregarMesa(){
   const nombre = document.getElementById('nueva-mesa').value.trim();
@@ -2242,6 +2299,7 @@ function etiquetaPedido(p){
 function renderCocina(){
   const el = document.getElementById('lista-cocina');
   if(!el) return;
+  const puedeAvanzar = currentRol === 'cocina' || currentRol === 'propietario';
   const activos = state.pedidosCocina.filter(p=>p.estado!=='cobrado');
   el.innerHTML = activos.length ? activos.map(p=>{
     const items = p.items.map(it=>{
@@ -2249,17 +2307,20 @@ function renderCocina(){
       return `<div class="hint" style="margin:2px 0;">${it.cantidad}x ${it.producto}${comentario}</div>`;
     }).join('');
     const etiquetaEstado = {pendiente:'Pendiente', preparando:'Preparando', listo:'Listo', entregado:'Entregado'}[p.estado];
-    const botones = p.estado==='pendiente' ? `<button class="mini" onclick="avanzarPedidoCocina(${p.id},'preparando')">Empezar</button>`
-      : p.estado==='preparando' ? `<button class="mini" onclick="avanzarPedidoCocina(${p.id},'listo')">Listo</button>`
-      : p.estado==='listo' ? `<button class="mini" onclick="avanzarPedidoCocina(${p.id},'entregado')">Entregado</button>`
-      : `<span class="hint" style="margin:0;">${p.yaPagado ? 'Ya pagado' : 'Esperando cobro en Ventas'}</span>`;
+    let botones = '';
+    if(puedeAvanzar){
+      botones = p.estado==='pendiente' ? `<button class="mini" onclick="avanzarPedidoCocina(${p.id},'preparando')">Empezar</button>`
+        : p.estado==='preparando' ? `<button class="mini" onclick="avanzarPedidoCocina(${p.id},'listo')">Listo</button>`
+        : p.estado==='listo' ? `<button class="mini" onclick="avanzarPedidoCocina(${p.id},'entregado')">Entregado</button>`
+        : `<span class="hint" style="margin:0;">${p.yaPagado ? 'Ya pagado' : 'Esperando cobro en Ventas'}</span>`;
+    }
     return `<div class="card" style="margin-bottom:8px;">
       <div class="row" style="justify-content:space-between;flex-wrap:nowrap;">
         <strong style="font-size:13px;">${p.hora} — ${etiquetaPedido(p)}</strong>
         <span class="tag ${p.estado==='listo'||p.estado==='entregado'?'ok':'edit'}">${etiquetaEstado}</span>
       </div>
       ${items}
-      <div class="row" style="margin-top:6px;">${botones}</div>
+      ${botones ? `<div class="row" style="margin-top:6px;">${botones}</div>` : ''}
     </div>`;
   }).join('') : '<div class="empty">No hay pedidos en cocina.</div>';
 }
