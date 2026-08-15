@@ -2442,13 +2442,13 @@ function stockDisponible(codigo){
   const usadoEnCarrito = carritoActual.filter(it=>!it.esCombo && it.codigo===codigo).reduce((s,it)=>s+it.cantidad,0);
   return item.stock - usadoEnCarrito;
 }
-function leerItemFormulario(){
+function leerItemFormulario(silencioso){
   const codigo = document.getElementById('v-codigo').value.trim().toUpperCase();
   const producto = document.getElementById('v-producto').value.trim();
   const cantidad = parseFloat(document.getElementById('v-cantidad').value) || 1;
   const precio = parseFloat(document.getElementById('v-precio').value) || 0;
   if(!producto || precio <= 0){
-    mostrarAlerta('Metele producto y precio antes de agregar el ítem.');
+    if(!silencioso) mostrarAlerta('Metele producto y precio antes de agregar el ítem.');
     return null;
   }
   const itemInsumo = state.inventario.find(p=>p.codigo===codigo);
@@ -2626,7 +2626,7 @@ function activarModuloCocinaDesdeSugerencia(){
   closeModal();
 }
 function enviarACocina(){
-  const pendiente = leerItemFormulario();
+  const pendiente = leerItemFormulario(true);
   if(pendiente){ carritoActual.push(pendiente); limpiarCamposItem(); }
   if(!carritoActual.length){ mostrarAlerta('Agregá al menos un producto antes de enviar a cocina.'); return; }
   const mesa = document.getElementById('v-mesa') ? document.getElementById('v-mesa').value : '';
@@ -2760,7 +2760,7 @@ function finalizarVenta(){
     abrirPersonalizarCombo(comboPend);
     return;
   }
-  const pendiente = leerItemFormulario();
+  const pendiente = leerItemFormulario(true);
   if(pendiente){ carritoActual.push(pendiente); limpiarCamposItem(); }
   if(!carritoActual.length){ mostrarAlerta('Agregá al menos un producto a la venta.'); return; }
   const cliente = document.getElementById('v-cliente').value.trim();
@@ -3983,7 +3983,7 @@ async function calcularContabilidad(){
       <div class="metric neg"><div class="lbl">Costo de lo comprado</div><div class="val">${fmt(m.costoVendido)}</div></div>
       <div class="metric neg"><div class="lbl">Gastos</div><div class="val">${fmt(m.gastosTotal)}</div></div>
       <div class="metric"><div class="lbl">Impuesto recaudado</div><div class="val">${fmt(m.impuesto)}</div></div>
-      <div class="metric ${m.gananciaNeta>=0?'pos':'neg'}"><div class="lbl">Ganancia neta</div><div class="val">${fmt(m.gananciaNeta)}</div></div>
+      <div class="metric ${m.gananciaNeta>=0?'pos':'neg'}"><div class="lbl">Balance del período</div><div class="val">${fmt(m.gananciaNeta)}</div></div>
       <div class="metric"><div class="lbl">Fiado del período</div><div class="val">${fmt(m.cobrarTotal)}</div></div>
       <div class="metric neg"><div class="lbl">Fiado pendiente (cobrar)</div><div class="val">${fmt(m.cobrarPendiente)}</div></div>
       <div class="metric neg"><div class="lbl">Pendiente de pagar</div><div class="val">${fmt(m.pagarPendiente)}</div></div>
@@ -4002,7 +4002,7 @@ function calcularComparacion(desde, hasta, m1){
     <tr><td>Ventas</td><td class="num">${fmt(m1.ventasTotal)}</td><td class="num">${fmt(m2.ventasTotal)}</td></tr>
     <tr><td>Costo de lo comprado</td><td class="num">${fmt(m1.costoVendido)}</td><td class="num">${fmt(m2.costoVendido)}</td></tr>
     <tr><td>Gastos</td><td class="num">${fmt(m1.gastosTotal)}</td><td class="num">${fmt(m2.gastosTotal)}</td></tr>
-    <tr><td>Ganancia neta</td><td class="num">${fmt(m1.gananciaNeta)}</td><td class="num">${fmt(m2.gananciaNeta)}</td></tr>
+    <tr><td>Balance del período</td><td class="num">${fmt(m1.gananciaNeta)}</td><td class="num">${fmt(m2.gananciaNeta)}</td></tr>
   </tbody></table></div>`;
 }
 async function renderDesgloseTiendas(desde, hasta){
@@ -4040,7 +4040,7 @@ function exportarContabilidadExcel(){
     {Concepto:'Costo de lo comprado', Monto:Number(m.costoVendido.toFixed(2))},
     {Concepto:'Gastos', Monto:Number(m.gastosTotal.toFixed(2))},
     {Concepto:'Impuesto recaudado', Monto:Number(m.impuesto.toFixed(2))},
-    {Concepto:'Ganancia neta', Monto:Number(m.gananciaNeta.toFixed(2))},
+    {Concepto:'Balance del período', Monto:Number(m.gananciaNeta.toFixed(2))},
     {Concepto:'Fiado del período', Monto:Number(m.cobrarTotal.toFixed(2))},
     {Concepto:'Fiado pendiente (cobrar)', Monto:Number(m.cobrarPendiente.toFixed(2))},
     {Concepto:'Pendiente de pagar', Monto:Number(m.pagarPendiente.toFixed(2))},
@@ -4178,7 +4178,7 @@ function render(){
     <div class="metric neg"><div class="lbl">Compras</div><div class="val">${fmt(totalCompras)}</div></div>
     <div class="metric neg"><div class="lbl">Gastos</div><div class="val">${fmt(totalGastos)}</div></div>
     <div class="metric"><div class="lbl">Impuesto (${state.config.tasa}%)</div><div class="val">${fmt(totalImpuesto)}</div></div>
-    <div class="metric ${ganancia>=0?'pos':'neg'}"><div class="lbl">Ganancia neta</div><div class="val">${fmt(ganancia)}</div></div>
+    <div class="metric ${ganancia>=0?'pos':'neg'}"><div class="lbl">Balance del período</div><div class="val">${fmt(ganancia)}</div></div>
   `;
 
   const recientes = [
