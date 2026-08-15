@@ -277,6 +277,11 @@
   .btn-excel { background: #198754; color: #fff; }
   .btn-tool { background: transparent; border: 1.5px solid var(--outline-variant); color: var(--on-surface-variant); }
   .btn-tool:hover { background: var(--surface-container-high); color: var(--on-surface); border-color: var(--outline); }
+  .btn-icon{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;min-height:auto;padding:0;border-radius:50%;border:none;background:var(--surface-container-high);color:var(--on-surface-variant);cursor:pointer;box-shadow:none;flex:0 0 auto;}
+  .btn-icon:hover{background:var(--primary-container);color:var(--on-primary-container);}
+  .btn-icon.danger{background:var(--error-container);color:var(--on-error-container);}
+  .btn-icon.danger:hover{background:var(--error);color:var(--on-error);}
+  .actions-icons{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
   
   .btn-google { background: var(--surface); color: var(--on-surface); border: 1.5px solid var(--outline-variant); }
   .help-icon { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--primary-container); color: var(--on-primary-container); font-size: 12px; font-weight: 800; padding: 0; min-height: auto; cursor: pointer; vertical-align: middle; margin-left: 6px; }
@@ -777,12 +782,13 @@
     <div class="card">
       <h3>Inventario</h3>
       <div class="filters" id="if-bar" style="display:none;">
-        <span>Filtrar</span>
-        <input type="text" id="if-texto" placeholder="Nombre, código, grupo o categoría" oninput="render()">
-        <select id="if-categoria" onchange="render()"><option value="">Todas las categorías</option></select>
-        <label class="check-line"><input type="checkbox" id="if-solo-variantes" onchange="render()"> Solo con variantes</label>
-        <label class="check-line"><input type="checkbox" id="if-solo-insumos" onchange="render()"> Solo insumos de servicio</label>
-        <button class="mini" onclick="limpiarFiltroInventario()">Limpiar</button>
+        <input type="text" id="if-texto" placeholder="Buscar por nombre, código, grupo o categoría" oninput="render()" style="flex:1 1 100%;">
+        <select id="if-categoria" onchange="render()" style="flex:1 1 auto;"><option value="">Todas las categorías</option></select>
+        <div style="display:flex;flex-direction:row;gap:14px;flex-wrap:wrap;align-items:center;flex:1 1 auto;">
+          <label class="check-line"><input type="checkbox" id="if-solo-variantes" onchange="render()"> Variantes</label>
+          <label class="check-line"><input type="checkbox" id="if-solo-insumos" onchange="render()"> Insumos</label>
+        </div>
+        <button class="btn-icon" title="Limpiar filtros" onclick="limpiarFiltroInventario()"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
       </div>
       <div id="lista-inventario"></div>
     </div>
@@ -906,6 +912,27 @@
   </div>
 
   <div class="panel" id="panel-config">
+    <div class="accordion" id="acc-rubro">
+      <div class="accordion-head" onclick="toggleAccordion('acc-rubro')"><span>Rubro de tu negocio</span><span class="chev">▾</span></div>
+      <div class="accordion-body">
+        <p class="hint">Define qué categorías preestablecidas te aparecen al agregar productos.</p>
+        <div class="field-group">
+          <select id="c-rubro" onchange="onRubroConfigChange()">
+            <option value="ropa">Ropa / Moda</option>
+            <option value="restaurante">Restaurante / Comida</option>
+            <option value="ferreteria">Ferretería</option>
+            <option value="farmacia">Farmacia</option>
+            <option value="abarrotes">Abarrotes / Conveniencia</option>
+            <option value="papeleria">Papelería</option>
+            <option value="belleza">Belleza / Estética</option>
+            <option value="servicios">Servicios</option>
+            <option value="otro">Otro</option>
+          </select>
+          <input type="text" id="c-rubro-otro" placeholder="Contanos cuál" style="display:none;">
+        </div>
+        <div class="row"><button class="mini" onclick="guardarRubroTienda()">Guardar rubro</button></div>
+      </div>
+    </div>
     <div class="accordion" id="acc-impuestos">
       <div class="accordion-head" onclick="toggleAccordion('acc-impuestos')"><span>Impuestos y moneda</span><span class="chev">▾</span></div>
       <div class="accordion-body">
@@ -1143,6 +1170,11 @@ const ICONO_GUARDAR = '<svg viewBox="0 0 24 24" width="14" height="14" fill="non
 
 const ICONO_OJO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
 const ICONO_OJO_TACHADO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.4 18.4 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
+const ICONO_LAPIZ = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path></svg>';
+const ICONO_BASURA = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
+const ICONO_QRCHICO = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect></svg>';
+const ICONO_SLIDERS = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>';
+const ICONO_TICKET = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"></path><line x1="13" y1="5" x2="13" y2="19"></line></svg>';
 function togglePassView(id, btn){
   const el = document.getElementById(id);
   const mostrar = el.type === 'password';
@@ -1215,6 +1247,16 @@ async function cargarDatosTienda(){
   if(document.getElementById('c-modulo-cocina')) document.getElementById('c-modulo-cocina').checked = state.config.moduloCocina;
   if(document.getElementById('c-cobro-cocina')) document.getElementById('c-cobro-cocina').value = state.config.cobroCocina;
   if(document.getElementById('c-mesero-cobra')) document.getElementById('c-mesero-cobra').checked = state.config.meseroPuedeCobrar;
+  if(document.getElementById('c-rubro') && state.config.rubro){
+    const opciones = ['ropa','restaurante','ferreteria','farmacia','abarrotes','papeleria','belleza','servicios'];
+    if(opciones.includes(state.config.rubro)){
+      document.getElementById('c-rubro').value = state.config.rubro;
+    } else {
+      document.getElementById('c-rubro').value = 'otro';
+      document.getElementById('c-rubro-otro').value = state.config.rubro;
+      document.getElementById('c-rubro-otro').style.display = 'flex';
+    }
+  }
   poblarSelectCategoria('i-categoria', '');
   aplicarVisibilidadCocina();
   render();
@@ -1291,6 +1333,19 @@ function onRubroRegChange(){
 }
 function onRubroObChange(){
   document.getElementById('ob-rubro-otro').style.display = document.getElementById('ob-rubro').value==='otro' ? 'flex' : 'none';
+}
+function onRubroConfigChange(){
+  document.getElementById('c-rubro-otro').style.display = document.getElementById('c-rubro').value==='otro' ? 'flex' : 'none';
+}
+async function guardarRubroTienda(){
+  const sel = document.getElementById('c-rubro').value;
+  const rubro = sel==='otro' ? document.getElementById('c-rubro-otro').value.trim() : sel;
+  if(!rubro){ mostrarAlerta('Contanos cuál es tu rubro.'); return; }
+  state.config.rubro = rubro;
+  await window.fb.actualizarTienda(currentTiendaId, { rubro });
+  poblarSelectCategoria('i-categoria', '');
+  guardar();
+  mostrarAlerta('Listo — ya podés usar las categorías preestablecidas de tu rubro al agregar productos.');
 }
 function abrirFormularioRegistro(){
   openModal(`
@@ -3956,7 +4011,7 @@ function render(){
     const resumenItems = v.items.map(it=>`<span class="code" style="margin-right:2px;">${it.codigo||'—'}</span>${it.cantidad}x ${it.producto}${it.promoAplicada?' '+ICONO_TAG:''}`).join('<br>');
     const nombrePago = {efectivo:'Efectivo',tarjeta:'Tarjeta',transferencia:'Transferencia',pagare:'Pagaré',fiado:'Fiado'}[v.metodoPago] || v.metodoPago;
     const pagoCelda = (v.metodoPago==='fiado'||v.metodoPago==='pagare') ? `${nombrePago} <span class="tag ${v.estadoPago==='pagado'?'ok':'low'}">${v.estadoPago==='pagado'?'Pagado':'Pendiente'}</span>` : nombrePago;
-    return `<tr><td><span class="code">${v.codigoVenta}</span></td><td>${v.fecha}</td><td>${resumenItems}${v.vendedorAplicado?` <span class="tag ok">${ICONO_PERSONA} Cód. vendedor</span>`:''}${v.historial.length?` <span class="tag edit" onclick="verHistorial(${v.id})">editado x${v.historial.length}</span>`:''}</td><td>${v.cliente||'—'}<br><span class="hint" style="margin:0;">${ICONO_PERSONA} ${v.registradoPor.nombre}</span></td><td>${pagoCelda}</td><td class="num">${v.descuentoMonto?fmt(v.descuentoMonto):'—'}</td><td class="num">${fmt(v.subtotal)}</td><td class="num">${fmt(v.impuesto)}</td><td class="num">${fmt(v.total)}</td><td class="center">${v.requiereEnvio?`<span class="tag low" style="cursor:pointer;" onclick="verEnvio(${v.id})">${ICONO_CAJA}</span>`:'—'}</td><td class="center"><input type="checkbox" ${v.enviado?'checked':''} onchange="toggleEnviado(${v.id})"></td><td class="actions"><button class="mini" onclick="mostrarTicketPorId(${v.id})">Ticket</button><button class="mini venta-accion-editar" onclick="editarVenta(${v.id})">Editar</button><button class="danger venta-accion-editar" onclick="borrarVenta(${v.id})">Eliminar</button></td></tr>`;
+    return `<tr><td><span class="code">${v.codigoVenta}</span></td><td>${v.fecha}</td><td>${resumenItems}${v.vendedorAplicado?` <span class="tag ok">${ICONO_PERSONA} Cód. vendedor</span>`:''}${v.historial.length?` <span class="tag edit" onclick="verHistorial(${v.id})">editado x${v.historial.length}</span>`:''}</td><td>${v.cliente||'—'}<br><span class="hint" style="margin:0;">${ICONO_PERSONA} ${v.registradoPor.nombre}</span></td><td>${pagoCelda}</td><td class="num">${v.descuentoMonto?fmt(v.descuentoMonto):'—'}</td><td class="num">${fmt(v.subtotal)}</td><td class="num">${fmt(v.impuesto)}</td><td class="num">${fmt(v.total)}</td><td class="center">${v.requiereEnvio?`<span class="tag low" style="cursor:pointer;" onclick="verEnvio(${v.id})">${ICONO_CAJA}</span>`:'—'}</td><td class="center"><input type="checkbox" ${v.enviado?'checked':''} onchange="toggleEnviado(${v.id})"></td><td><div class="actions-icons"><button class="btn-icon" title="Ver ticket" onclick="mostrarTicketPorId(${v.id})">${ICONO_TICKET}</button><button class="btn-icon venta-accion-editar" title="Editar" onclick="editarVenta(${v.id})">${ICONO_LAPIZ}</button><button class="btn-icon danger venta-accion-editar" title="Eliminar" onclick="borrarVenta(${v.id})">${ICONO_BASURA}</button></div></td></tr>`;
   }).join('')}</tbody></table></div>` : '<div class="empty">No hay ventas con ese filtro.</div>';
 
   document.getElementById('cf-bar').style.display = state.compras.length ? 'flex' : 'none';
@@ -4030,7 +4085,7 @@ document.getElementById('lista-combos').innerHTML = state.combos.length ? state.
       <p class="hint" style="margin:0 0 4px;">${detalle} — ${fmt(c.precioVenta)}</p>
       ${costoEstimado>0 ? `<p class="hint" style="margin:0 0 4px;">Costo estimado: ${fmt(costoEstimado)}${!costoCompleto?' (parcial, faltan compras de algún ingrediente)':''}${margen!==null?` · Margen: ${margen}%`:''}</p>` : ''}
       <p class="hint" style="margin:0 0 6px;font-weight:700;color:${rendimiento===null?'var(--ink-faint)':(rendimiento<=3?'var(--rust)':'var(--moss)')};">${rendimiento===null ? 'Sin componentes fijos para calcular rendimiento' : `Alcanza para ${rendimiento} venta(s) con el stock actual`}</p>
-      <div class="actions">${c.qr?`<button class="mini" onclick="verQR('${c.codigo}')">QR</button>`:''}<button class="mini" onclick="abrirCrearCombo(${c.id})">Editar</button><button class="danger" onclick="borrarCombo(${c.id})">Eliminar</button></div>
+      <div class="actions-icons">${c.qr?`<button class="btn-icon" title="Ver QR" onclick="verQR('${c.codigo}')">${ICONO_QRCHICO}</button>`:''}<button class="btn-icon" title="Editar" onclick="abrirCrearCombo(${c.id})">${ICONO_LAPIZ}</button><button class="btn-icon danger" title="Eliminar" onclick="borrarCombo(${c.id})">${ICONO_BASURA}</button></div>
     </div>`;
   }).join('') : '<div class="empty">Todavía no creás combos.</div>';
 
@@ -4059,7 +4114,7 @@ document.getElementById('lista-combos').innerHTML = state.combos.length ? state.
       filaGrupo = `<tr style="background:var(--primary-soft);cursor:pointer;" onclick="toggleGrupoColapsado('${p.grupoNombre.replace(/'/g,"\\'")}')"><td colspan="4" style="font-weight:700;font-size:12px;">${colapsado?'▸':'▾'} ${p.grupoNombre} <span class="hint" style="margin:0;">(${cantidadEnGrupo} variantes)</span></td><td colspan="2" class="actions" onclick="event.stopPropagation();"><button class="mini" onclick="editarGrupoVariantes('${p.grupoNombre.replace(/'/g,"\\'")}')">Editar grupo</button><button class="danger" onclick="borrarGrupoVariantes('${p.grupoNombre.replace(/'/g,"\\'")}')">Eliminar grupo</button></td></tr>`;
     }
     if(p.grupoNombre && gruposColapsados.has(p.grupoNombre)) return filaGrupo;
-    return filaGrupo + `<tr><td><span class="code">${p.codigo}</span></td><td>${p.grupoNombre ? '↳ '+p.producto.replace(p.grupoNombre,'').trim() : p.producto}${p.categoria?` <span class="hint" style="margin:0;">· ${p.categoria}</span>`:''}${p.esInsumo?` <span class="tag edit">Insumo</span>`:''}</td><td class="num">${fmtCantidad(p.stock, p.unidad)}</td><td class="num">${p.precioVenta?fmt(p.precioVenta):'—'}</td><td>${p.stock<=p.reorden ? '<span class="tag low">Reordenar</span>' : '<span class="tag ok">Ok</span>'}</td><td class="actions">${p.qr?`<button class="mini" onclick="verQR('${p.codigo}')">QR</button>`:''}<button class="mini" onclick="abrirAjusteInventario(${p.id})">Ajustar</button><button class="mini" onclick="editarProducto(${p.id})">Editar</button><button class="danger" onclick="borrarProducto(${p.id})">Eliminar</button></td></tr>`;
+    return filaGrupo + `<tr><td><span class="code">${p.codigo}</span></td><td>${p.grupoNombre ? '↳ '+p.producto.replace(p.grupoNombre,'').trim() : p.producto}${p.categoria?` <span class="hint" style="margin:0;">· ${p.categoria}</span>`:''}${p.esInsumo?` <span class="tag edit">Insumo</span>`:''}</td><td class="num">${fmtCantidad(p.stock, p.unidad)}</td><td class="num">${p.precioVenta?fmt(p.precioVenta):'—'}</td><td>${p.stock<=p.reorden ? '<span class="tag low">Reordenar</span>' : '<span class="tag ok">Ok</span>'}</td><td><div class="actions-icons">${p.qr?`<button class="btn-icon" title="Ver QR" onclick="verQR('${p.codigo}')">${ICONO_QRCHICO}</button>`:''}<button class="btn-icon" title="Ajustar stock" onclick="abrirAjusteInventario(${p.id})">${ICONO_SLIDERS}</button><button class="btn-icon" title="Editar" onclick="editarProducto(${p.id})">${ICONO_LAPIZ}</button><button class="btn-icon danger" title="Eliminar" onclick="borrarProducto(${p.id})">${ICONO_BASURA}</button></div></td></tr>`;
   }).join('');
   document.getElementById('lista-inventario').innerHTML = inventarioFiltrado.length ? `<div class="table-scroll"><table><thead><tr><th>Código</th><th>Producto</th><th class="num">Stock</th><th class="num">Precio venta</th><th>Estado</th><th></th></tr></thead><tbody>${filasInventario}</tbody></table></div>` : (state.inventario.length ? '<div class="empty">No hay productos con ese filtro.</div>' : '<div class="empty">Todavía no agregás productos.</div>');
 }
