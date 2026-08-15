@@ -510,6 +510,7 @@
   </div>
 
   <div class="panel active" id="panel-resumen">
+    <h2 style="margin:0 0 14px;">Resumen</h2>
     <div class="card" id="card-descargar-informe">
       <div class="row" style="justify-content:space-between;flex-wrap:nowrap;align-items:center;margin:0;">
         <div>
@@ -2891,12 +2892,24 @@ function editarVenta(id){
     <h3>Editar venta</h3>
     <p class="hint">Cantidad y precio unitario por producto. Las promociones se recalculan solas.</p>
     ${filasItems}
-    <div class="field-group"><label>Motivo de la modificación (obligatorio)</label><input type="text" id="ev-motivo" placeholder="Ej. error al digitar cantidad"></div>
+    <div class="field-group">
+      <label>Motivo de la modificación</label>
+      <select id="ev-motivo-select">
+        <option value="Error al digitar cantidad">Error al digitar cantidad</option>
+        <option value="Error al digitar precio">Error al digitar precio</option>
+        <option value="Cliente cambió lo que llevaba">Cliente cambió lo que llevaba</option>
+        <option value="otro">Otro</option>
+      </select>
+    </div>
+    <div class="field-group" id="ev-motivo-otro-wrap" style="display:none;"><input type="text" id="ev-motivo" placeholder="Contanos qué pasó"></div>
     <div class="row">
       <button class="secondary" onclick="closeModal()">Cancelar</button>
       <button onclick="guardarEdicionVenta(${id})">Guardar cambios</button>
     </div>
   `);
+  document.getElementById('ev-motivo-select').addEventListener('change', function(){
+    document.getElementById('ev-motivo-otro-wrap').style.display = this.value==='otro' ? 'block' : 'none';
+  });
 }
 function ajustarStockPorItem(it, signo){
   // signo: +1 devuelve stock, -1 lo descuenta
@@ -2914,7 +2927,8 @@ function ajustarStockPorItem(it, signo){
 function guardarEdicionVenta(id){
   const v = state.ventas.find(x=>x.id===id);
   if(!v) return;
-  const motivo = document.getElementById('ev-motivo').value.trim();
+  const motivoSel = document.getElementById('ev-motivo-select').value;
+  const motivo = motivoSel==='otro' ? document.getElementById('ev-motivo').value.trim() : motivoSel;
   if(!motivo){ mostrarAlerta('Necesitás indicar un motivo para modificar la venta.'); return; }
   const anterior = v.items.map(it=>`${it.cantidad}x ${it.producto} a ${fmt(it.precioUnit)}`).join(', ');
   // Devolver stock de los valores actuales antes de recalcular
@@ -3464,6 +3478,7 @@ function editarProducto(id){
       </div>
       <div class="row"><label class="check-line"><input type="checkbox" id="ep-vender-extra" ${p.venderComoExtra?'checked':''}> Permitir venderlo como extra (aparece en Ventas)</label></div>
     </div>
+    <div class="row"><label class="check-line"><input type="checkbox" id="ep-qr" ${p.qr?'checked':''}> Generar código QR${p.qr?' (ya lo tiene — desmarcá para quitarlo)':''}</label></div>
     <div class="row">
       <button class="secondary" onclick="closeModal()">Cancelar</button>
       <button onclick="guardarEdicionProducto(${id})">Guardar cambios</button>
@@ -3511,6 +3526,7 @@ function guardarEdicionProducto(id){
   p.capacidad = parseFloat(document.getElementById('ep-capacidad').value) || 1;
   p.multiplicador = parseFloat(document.getElementById('ep-multiplicador').value) || 1;
   p.venderComoExtra = document.getElementById('ep-vender-extra').checked;
+  p.qr = document.getElementById('ep-qr').checked;
   guardar(); render(); closeModal();
 }
 function borrarProducto(id){
