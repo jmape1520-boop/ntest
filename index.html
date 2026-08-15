@@ -11,7 +11,7 @@
 <script type="module">
   import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, sendPasswordResetEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
-  import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyADVuxeMej3mYo3VutAwTeb5oK1uIrLYpo",
@@ -85,6 +85,11 @@
     leerPedidosTienda: async (tiendaId) => {
       const snap = await getDoc(doc(db, 'tiendas', tiendaId, 'negocio', 'pedidos'));
       return snap.exists() ? snap.data().json : null;
+    },
+    escucharPedidosTienda: (tiendaId, callback) => {
+      return onSnapshot(doc(db, 'tiendas', tiendaId, 'negocio', 'pedidos'), (snap) => {
+        callback(snap.exists() ? snap.data().json : null);
+      }, (error) => { console.error('Error escuchando pedidos:', error); });
     },
 
     // Crea una cuenta de vendedor SIN cerrar la sesión del propietario (usa una instancia temporal de Firebase)
@@ -188,6 +193,10 @@
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body { margin: 0; font-family: var(--font-sans); background: var(--surface); color: var(--on-surface); line-height: 1.5; }
   .wrap { max-width: 1000px; margin: 0 auto; padding: 20px 16px 80px; }
+  @media (min-width: 1280px){ .wrap { max-width: 1240px; } }
+  .scroll-arrow{display:none;flex:0 0 auto;width:36px;height:36px;align-items:center;justify-content:center;border-radius:50%;border:none;background:var(--surface-container-high);color:var(--on-surface-variant);cursor:pointer;box-shadow:none;}
+  .scroll-arrow.show{display:flex;}
+  .scroll-arrow:hover{background:var(--primary-container);color:var(--on-primary-container);}
   
   h3 { margin: 0 0 16px; font-size: 1.25rem; font-weight: 800; color: var(--on-surface); letter-spacing: -0.02em; }
   p { margin: 0 0 16px; }
@@ -453,35 +462,26 @@
   </header>
 
   <div class="tabs-row">
+    <button class="scroll-arrow" id="tabs-arrow-left" onclick="scrollTabs(-240)" type="button" title="Ver anteriores">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    </button>
     <div class="tabs" id="tabs-bar">
       <div class="tab active" data-tab="resumen"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"></polyline><polyline points="14 7 21 7 21 14"></polyline></svg>Resumen</div>
       <div class="tab" data-tab="ventas"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83 3.83 11l9.58 9.59a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.83Z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg>Ventas</div>
       <div class="tab" data-tab="inventario"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6v4H9z"></path><path d="M9 4H5a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-4"></path><polyline points="9 13 11 15 15 11"></polyline></svg>Inventario</div>
-    </div>
-    <button class="menu-toggle" id="menu-toggle-btn" onclick="toggleMenuMas()" type="button">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
-      Más
-    </button>
-  </div>
-  <div class="menu-mas" id="menu-mas">
-    <div class="menu-mas-group" data-grupo="inventario">
-      <div class="menu-mas-title">Inventario</div>
       <div class="tab" data-tab="kardex"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>Kardex</div>
       <div class="tab" data-tab="costos"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="8" y1="10" x2="10" y2="10"></line><line x1="14" y1="10" x2="16" y2="10"></line><line x1="8" y1="14" x2="10" y2="14"></line><line x1="14" y1="14" x2="16" y2="14"></line><line x1="8" y1="18" x2="10" y2="18"></line><line x1="14" y1="18" x2="16" y2="18"></line></svg>Costos</div>
       <div class="tab" data-tab="combos"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect></svg>Combos y Recetas</div>
       <div class="tab" data-tab="cocina" id="tab-cocina" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z"></path><line x1="6" y1="17" x2="18" y2="17"></line></svg>Cocina</div>
-    </div>
-    <div class="menu-mas-group" data-grupo="finanzas">
-      <div class="menu-mas-title">Finanzas</div>
       <div class="tab" data-tab="compras"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"></path><path d="M3 9h18v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z"></path><path d="M9 13h6"></path></svg>Compras</div>
       <div class="tab" data-tab="gastos"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"></path><path d="M12 9v6"></path><path d="M9.5 11.5c0-1 1-1.5 2.5-1.5s2.5.5 2.5 1.5-1 1.5-2.5 1.5-2.5.5-2.5 1.5 1 1.5 2.5 1.5 2.5-.5 2.5-1.5"></path></svg>Gastos</div>
       <div class="tab" data-tab="promos"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83 3.83 11l9.58 9.59a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.83Z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg>Promos</div>
       <div class="tab" data-tab="contabilidad"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>Contabilidad</div>
-    </div>
-    <div class="menu-mas-group" data-grupo="sistema">
-      <div class="menu-mas-title">Sistema</div>
       <div class="tab" data-tab="config"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"></path></svg>Configuración</div>
     </div>
+    <button class="scroll-arrow" id="tabs-arrow-right" onclick="scrollTabs(240)" type="button" title="Ver más">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+    </button>
   </div>
 
   <div class="panel active" id="panel-resumen">
@@ -1066,20 +1066,20 @@ let state = { ventas: [], compras: [], gastos: [], inventario: [], promociones: 
 function toggleAccordion(id){
   document.getElementById(id).classList.toggle('open');
 }
-function toggleMenuMas(){
-  document.getElementById('menu-mas').classList.toggle('open');
-  document.getElementById('menu-toggle-btn').classList.toggle('open');
+function scrollTabs(cantidad){
+  const bar = document.getElementById('tabs-bar');
+  if(bar) bar.scrollBy({ left: cantidad, behavior: 'smooth' });
 }
-function cerrarMenuMas(){
-  document.getElementById('menu-mas').classList.remove('open');
-  document.getElementById('menu-toggle-btn').classList.remove('open');
+function actualizarFlechasTabs(){
+  const bar = document.getElementById('tabs-bar');
+  const izq = document.getElementById('tabs-arrow-left');
+  const der = document.getElementById('tabs-arrow-right');
+  if(!bar || !izq || !der) return;
+  const hayOverflow = bar.scrollWidth > bar.clientWidth + 2;
+  izq.classList.toggle('show', hayOverflow && bar.scrollLeft > 4);
+  der.classList.toggle('show', hayOverflow && bar.scrollLeft < (bar.scrollWidth - bar.clientWidth - 4));
 }
 document.addEventListener('click', (e)=>{
-  const menu = document.getElementById('menu-mas');
-  const btn = document.getElementById('menu-toggle-btn');
-  if(menu && menu.classList.contains('open') && !menu.contains(e.target) && e.target !== btn && !btn.contains(e.target)){
-    cerrarMenuMas();
-  }
   const menuP = document.getElementById('menu-perfil');
   const btnP = document.getElementById('avatar-btn');
   if(menuP && menuP.classList.contains('open') && !menuP.contains(e.target) && e.target !== btnP && !btnP.contains(e.target)){
@@ -1449,6 +1449,7 @@ async function hacerRecuperarPassword(){
   }catch(e){ err.style.color = 'var(--rust)'; err.textContent = mensajeErrorAuth(e); }
 }
 function hacerLogout(){
+  detenerEscuchaPedidos();
   window.fb.cerrarSesion();
 }
 
@@ -1514,12 +1515,7 @@ function aplicarRestriccionesRol(){
     else if(esCocina) visible = tabsPermitidasCocina.includes(t.dataset.tab);
     t.style.display = visible ? 'flex' : 'none';
   });
-  document.querySelectorAll('.menu-mas-group').forEach(g=>{
-    const visibles = Array.from(g.querySelectorAll('.tab')).some(t=>t.style.display !== 'none');
-    g.classList.toggle('vacio', !visibles);
-  });
-  const grupoConVisibles = Array.from(document.querySelectorAll('.menu-mas-group')).some(g=>!g.classList.contains('vacio'));
-  document.getElementById('menu-toggle-btn').style.display = grupoConVisibles ? 'flex' : 'none';
+  actualizarFlechasTabs();
 
   // Contador: Ventas y Kardex de solo lectura — no registra ni edita ventas
   const ventasSoloLectura = document.getElementById('ventas-registrar-card');
@@ -1676,6 +1672,30 @@ async function finalizarEntrada(nombreTienda){
     await refrescarListaTiendas();
     await refrescarListaCadenas();
   }
+  iniciarEscuchaPedidos();
+}
+let unsubscribePedidos = null;
+function iniciarEscuchaPedidos(){
+  if(unsubscribePedidos){ unsubscribePedidos(); unsubscribePedidos = null; }
+  if(!currentTiendaId) return;
+  unsubscribePedidos = window.fb.escucharPedidosTienda(currentTiendaId, (raw)=>{
+    if(!raw) return;
+    try{
+      const p = JSON.parse(raw);
+      state.pedidosCocina = p.pedidosCocina || [];
+      state.mesas = p.mesas || [];
+      if(currentRol === 'mesero' || currentRol === 'cocina'){
+        state.config.moduloCocina = p.moduloCocina!==undefined ? p.moduloCocina : true;
+        state.config.cobroCocina = p.cobroCocina || 'despues';
+        state.config.meseroPuedeCobrar = !!p.meseroPuedeCobrar;
+        aplicarVisibilidadCocina();
+      }
+      render();
+    }catch(e){ console.error(e); }
+  });
+}
+function detenerEscuchaPedidos(){
+  if(unsubscribePedidos){ unsubscribePedidos(); unsubscribePedidos = null; }
 }
 
 function arrancarEscuchaSesion(){
@@ -2024,11 +2044,16 @@ document.querySelectorAll('.tab').forEach(t=>{
     document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
     t.classList.add('active');
     document.getElementById('panel-'+t.dataset.tab).classList.add('active');
-    if(t.closest('#menu-mas')) cerrarMenuMas();
+    t.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
     if(t.dataset.tab === 'kardex') poblarDatalistKardex();
     if(t.dataset.tab === 'contabilidad') calcularContabilidad();
   });
 });
+const tabsBarEl = document.getElementById('tabs-bar');
+if(tabsBarEl){
+  tabsBarEl.addEventListener('scroll', actualizarFlechasTabs);
+  window.addEventListener('resize', actualizarFlechasTabs);
+}
 
 function cambiarPais(){
   const tasas = {SV:13, GT:12, HN:15, MX:16, CO:19};
@@ -2053,6 +2078,7 @@ function aplicarVisibilidadCocina(){
   const cardCobrar = document.getElementById('card-pedidos-cobrar');
   const cobroDespues = state.config.cobroCocina==='despues';
   if(tabCocina) tabCocina.style.display = activo ? 'flex' : 'none';
+  actualizarFlechasTabs();
   if(mesaWrap) mesaWrap.style.display = activo ? 'flex' : 'none';
   if(extra) extra.style.display = state.config.moduloCocina ? 'block' : 'none';
   const opcionMesero = document.getElementById('ve-rol-mesero');
