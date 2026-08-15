@@ -2328,7 +2328,10 @@ function leerItemFormulario(){
   const producto = document.getElementById('v-producto').value.trim();
   const cantidad = parseFloat(document.getElementById('v-cantidad').value) || 1;
   const precio = parseFloat(document.getElementById('v-precio').value) || 0;
-  if(!producto || precio <= 0) return null;
+  if(!producto || precio <= 0){
+    mostrarAlerta('Metele producto y precio antes de agregar el ítem.');
+    return null;
+  }
   const itemInsumo = state.inventario.find(p=>p.codigo===codigo);
   if(itemInsumo && itemInsumo.esInsumo && !itemInsumo.venderComoExtra){
     mostrarAlerta(`"${itemInsumo.producto}" es un insumo de servicio, no está pensado para venderse directo. Si querés cobrarlo como extra, activá "Permitir venderlo como extra" en Inventario.`);
@@ -2361,7 +2364,7 @@ function agregarItemCarrito(){
     return;
   }
   const item = leerItemFormulario();
-  if(!item){ mostrarAlerta('Metele producto y precio antes de agregar el ítem.'); return; }
+  if(!item) return;
   carritoActual.push(item);
   limpiarCamposItem();
   renderCarrito();
@@ -3358,13 +3361,13 @@ async function abrirCopiarProductos(){
     <p class="hint">El stock arranca en 0 en esta tienda — después lo abastecés con Compras.</p>
     <div class="field-group">
       <label>Desde qué tienda</label>
-      <select id="cp-origen" onchange="cargarListaCopiarProductos()">
+      <select id="cprod-origen" onchange="cargarListaCopiarProductos()">
         <option value="">Elegí una tienda</option>
         ${nombres.map(({id,t})=>`<option value="${id}">${t?t.nombre:id}</option>`).join('')}
       </select>
     </div>
-    <div id="cp-lista"></div>
-    <p class="hint" id="cp-error" style="color:var(--rust);"></p>
+    <div id="cprod-lista"></div>
+    <p class="hint" id="cprod-error" style="color:var(--rust);"></p>
     <div class="row">
       <button class="secondary" onclick="closeModal()">Cancelar</button>
       <button onclick="confirmarCopiarProductos()">Copiar seleccionados</button>
@@ -3372,8 +3375,8 @@ async function abrirCopiarProductos(){
   `);
 }
 async function cargarListaCopiarProductos(){
-  const origenId = document.getElementById('cp-origen').value;
-  const el = document.getElementById('cp-lista');
+  const origenId = document.getElementById('cprod-origen').value;
+  const el = document.getElementById('cprod-lista');
   if(!origenId){ el.innerHTML=''; window._productosOrigenTemp = []; return; }
   el.innerHTML = '<p class="hint">Cargando...</p>';
   const raw = await window.fb.leerDatosTienda(origenId);
@@ -3387,7 +3390,7 @@ async function cargarListaCopiarProductos(){
 }
 function confirmarCopiarProductos(){
   const seleccionados = Array.from(document.querySelectorAll('.cp-prod-check:checked')).map(el=>el.value);
-  const err = document.getElementById('cp-error');
+  const err = document.getElementById('cprod-error');
   if(!seleccionados.length){ err.textContent = 'Marcá al menos un producto.'; return; }
   const productos = window._productosOrigenTemp || [];
   let copiados = 0, omitidos = 0;
