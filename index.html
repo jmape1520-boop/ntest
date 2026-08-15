@@ -238,11 +238,17 @@
     .row { flex-direction: row; align-items: center; }
     .row > input, .row > select, .row > .pass-wrap { flex: 1; min-width: 0; }
     .row > button:not(.pass-toggle) { flex: 0 0 auto; }
-    #tabs-bar .tab-label{ display:inline; }
   }
   #tabs-bar .tab-label{ display:none; }
-  #tabs-bar .tab{ padding: 12px 14px; }
-  @media (min-width: 640px){ #tabs-bar .tab{ padding: 12px 20px; } }
+  #tabs-bar .tab svg{ width: 21px; height: 21px; }
+  @media (min-width: 640px){ #tabs-bar .tab svg{ width: 18px; height: 18px; } }
+  #tabs-bar .tab{ padding: 13px; width: 46px; height: 46px; justify-content: center; }
+  .tabs-row #tabs-bar{ justify-content: space-around; }
+  @media (min-width: 640px) {
+    #tabs-bar .tab-label{ display:inline; }
+    #tabs-bar .tab{ padding: 12px 20px; width: auto; height: auto; }
+    .tabs-row #tabs-bar{ justify-content: flex-start; }
+  }
   
   input, select {
     width: 100%;
@@ -455,7 +461,6 @@
         <span class="b2">INVENTORY</span>
       </div>
       <div class="brand-badges">
-        <span class="role-badge" id="badge-rol">—</span>
         <span class="hint" id="badge-tienda" style="margin:0;">—</span>
       </div>
     </div>
@@ -1682,7 +1687,7 @@ function etiquetaRol(rol){
   return { propietario:'Propietario', contador:'Contador', mesero:'Mesero', cocina:'Cocina' }[rol] || 'Vendedor';
 }
 async function finalizarEntrada(nombreTienda){
-  document.getElementById('badge-rol').textContent = etiquetaRol(currentRol);
+  if(document.getElementById('badge-rol')) document.getElementById('badge-rol').textContent = etiquetaRol(currentRol);
   document.getElementById('badge-tienda').textContent = nombreTienda;
   document.getElementById('perfil-menu-nombre-texto').textContent = currentNombre || '—';
   document.getElementById('perfil-menu-rol-texto').textContent = etiquetaRol(currentRol);
