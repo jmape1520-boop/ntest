@@ -238,7 +238,11 @@
     .row { flex-direction: row; align-items: center; }
     .row > input, .row > select, .row > .pass-wrap { flex: 1; min-width: 0; }
     .row > button:not(.pass-toggle) { flex: 0 0 auto; }
+    #tabs-bar .tab-label{ display:inline; }
   }
+  #tabs-bar .tab-label{ display:none; }
+  #tabs-bar .tab{ padding: 12px 14px; }
+  @media (min-width: 640px){ #tabs-bar .tab{ padding: 12px 20px; } }
   
   input, select {
     width: 100%;
@@ -337,10 +341,16 @@
   }
   .menu-perfil, .menu-mas {
     display: none; position: absolute; z-index: 50; background: var(--surface-container-high);
-    border-radius: var(--radius-lg); box-shadow: var(--elev-2); padding: 20px;
+    border-radius: var(--radius-lg); box-shadow: var(--elev-2); padding: 12px;
   }
-  .menu-perfil.open { display: block; top: 65px; right: 0; width: 220px; }
-  
+  .menu-perfil.open { display: block; top: 65px; right: 0; width: 280px; max-height: 80vh; overflow-y: auto; }
+  .menu-perfil-header{ display:flex; align-items:center; gap:12px; padding:10px 8px 16px; border-bottom:1px solid var(--outline-variant); margin-bottom:8px; }
+  .menu-perfil-avatar{ width:44px; height:44px; border-radius:50%; background:var(--primary-container); color:var(--on-primary-container); display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+  .menu-perfil-nav .tab{ flex-direction:row; justify-content:flex-start; width:100%; padding:11px 10px; border-radius:var(--radius-md); margin-bottom:2px; font-size:0.9rem; }
+  .menu-perfil-nav .tab svg{ width:19px; height:19px; flex:0 0 auto; }
+  .menu-perfil-nav .tab.active{ background:var(--primary-container); color:var(--on-primary-container); }
+  .menu-perfil-footer{ border-top:1px solid var(--outline-variant); margin-top:10px; padding-top:12px; }
+
   .menu-mas { position: static; margin-bottom: 24px; padding: 24px; box-shadow: none; background: var(--surface-container); width: 100%; border-radius: var(--radius-lg); }
   .menu-mas.open { display: block; }
   .menu-mas-group { margin-bottom: 24px; }
@@ -450,13 +460,30 @@
       </div>
     </div>
     <div class="row" style="flex:0 0 auto;gap:6px;position:relative;">
-      <button class="avatar-btn" id="avatar-btn" onclick="toggleMenuPerfil()" type="button">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+      <button class="avatar-btn" id="avatar-btn" onclick="toggleMenuPerfil()" type="button" title="Menú">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="17" x2="20" y2="17"></line></svg>
       </button>
       <div class="menu-perfil" id="menu-perfil">
-        <p class="hint" id="perfil-menu-nombre" style="margin:0 0 10px;"></p>
-        <button class="mini" style="width:100%;margin-bottom:6px;" onclick="cerrarMenuPerfil(); abrirCambiarPassword();">Cambiar contraseña</button>
-        <button class="secondary" style="width:100%;" onclick="hacerLogout()">Salir</button>
+        <div class="menu-perfil-header">
+          <div class="menu-perfil-avatar"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></div>
+          <div>
+            <p id="perfil-menu-nombre-texto" style="margin:0;font-weight:800;font-size:15px;"></p>
+            <p id="perfil-menu-rol-texto" class="hint" style="margin:0;"></p>
+          </div>
+        </div>
+        <div class="menu-perfil-nav">
+          <div class="tab" data-tab="kardex"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg><span class="tab-label">Kardex</span></div>
+          <div class="tab" data-tab="costos"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="8" y1="10" x2="10" y2="10"></line><line x1="14" y1="10" x2="16" y2="10"></line><line x1="8" y1="14" x2="10" y2="14"></line><line x1="14" y1="14" x2="16" y2="14"></line><line x1="8" y1="18" x2="10" y2="18"></line><line x1="14" y1="18" x2="16" y2="18"></line></svg><span class="tab-label">Costos</span></div>
+          <div class="tab" data-tab="combos"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect></svg><span class="tab-label">Combos y Recetas</span></div>
+          <div class="tab" data-tab="cocina" id="tab-cocina" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z"></path><line x1="6" y1="17" x2="18" y2="17"></line></svg><span class="tab-label">Cocina</span></div>
+          <div class="tab" data-tab="promos"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83 3.83 11l9.58 9.59a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.83Z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="tab-label">Promociones</span></div>
+          <div class="tab" data-tab="contabilidad"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg><span class="tab-label">Contabilidad</span></div>
+          <div class="tab" data-tab="config"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"></path></svg><span class="tab-label">Configuración</span></div>
+        </div>
+        <div class="menu-perfil-footer">
+          <button class="mini" style="width:100%;margin-bottom:6px;" onclick="cerrarMenuPerfil(); abrirCambiarPassword();">Cambiar contraseña</button>
+          <button class="secondary" style="width:100%;" onclick="hacerLogout()">Salir</button>
+        </div>
       </div>
     </div>
   </header>
@@ -466,18 +493,11 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
     </button>
     <div class="tabs" id="tabs-bar">
-      <div class="tab active" data-tab="resumen"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"></polyline><polyline points="14 7 21 7 21 14"></polyline></svg>Resumen</div>
-      <div class="tab" data-tab="ventas"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83 3.83 11l9.58 9.59a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.83Z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg>Ventas</div>
-      <div class="tab" data-tab="inventario"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6v4H9z"></path><path d="M9 4H5a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-4"></path><polyline points="9 13 11 15 15 11"></polyline></svg>Inventario</div>
-      <div class="tab" data-tab="kardex"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>Kardex</div>
-      <div class="tab" data-tab="costos"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="8" y1="10" x2="10" y2="10"></line><line x1="14" y1="10" x2="16" y2="10"></line><line x1="8" y1="14" x2="10" y2="14"></line><line x1="14" y1="14" x2="16" y2="14"></line><line x1="8" y1="18" x2="10" y2="18"></line><line x1="14" y1="18" x2="16" y2="18"></line></svg>Costos</div>
-      <div class="tab" data-tab="combos"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect></svg>Combos y Recetas</div>
-      <div class="tab" data-tab="cocina" id="tab-cocina" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z"></path><line x1="6" y1="17" x2="18" y2="17"></line></svg>Cocina</div>
-      <div class="tab" data-tab="compras"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"></path><path d="M3 9h18v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z"></path><path d="M9 13h6"></path></svg>Compras</div>
-      <div class="tab" data-tab="gastos"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"></path><path d="M12 9v6"></path><path d="M9.5 11.5c0-1 1-1.5 2.5-1.5s2.5.5 2.5 1.5-1 1.5-2.5 1.5-2.5.5-2.5 1.5 1 1.5 2.5 1.5 2.5-.5 2.5-1.5"></path></svg>Gastos</div>
-      <div class="tab" data-tab="promos"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83 3.83 11l9.58 9.59a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.83Z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg>Promos</div>
-      <div class="tab" data-tab="contabilidad"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>Contabilidad</div>
-      <div class="tab" data-tab="config"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"></path></svg>Configuración</div>
+      <div class="tab active" data-tab="resumen"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"></polyline><polyline points="14 7 21 7 21 14"></polyline></svg><span class="tab-label">Resumen</span></div>
+      <div class="tab" data-tab="ventas"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83 3.83 11l9.58 9.59a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.83Z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="tab-label">Ventas</span></div>
+      <div class="tab" data-tab="inventario"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6v4H9z"></path><path d="M9 4H5a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-4"></path><polyline points="9 13 11 15 15 11"></polyline></svg><span class="tab-label">Inventario</span></div>
+      <div class="tab" data-tab="compras"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"></path><path d="M3 9h18v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z"></path><path d="M9 13h6"></path></svg><span class="tab-label">Compras</span></div>
+      <div class="tab" data-tab="gastos"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"></path><path d="M12 9v6"></path><path d="M9.5 11.5c0-1 1-1.5 2.5-1.5s2.5.5 2.5 1.5-1 1.5-2.5 1.5-2.5.5-2.5 1.5 1 1.5 2.5 1.5 2.5-.5 2.5-1.5"></path></svg><span class="tab-label">Gastos</span></div>
     </div>
     <button class="scroll-arrow" id="tabs-arrow-right" onclick="scrollTabs(240)" type="button" title="Ver más">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
@@ -1664,7 +1684,8 @@ function etiquetaRol(rol){
 async function finalizarEntrada(nombreTienda){
   document.getElementById('badge-rol').textContent = etiquetaRol(currentRol);
   document.getElementById('badge-tienda').textContent = nombreTienda;
-  document.getElementById('perfil-menu-nombre').textContent = `${currentNombre||'—'} · ${etiquetaRol(currentRol)}`;
+  document.getElementById('perfil-menu-nombre-texto').textContent = currentNombre || '—';
+  document.getElementById('perfil-menu-rol-texto').textContent = etiquetaRol(currentRol);
   aplicarRestriccionesRol();
   await cargarDatosTienda();
   if(currentRol === 'propietario'){
@@ -2045,6 +2066,7 @@ document.querySelectorAll('.tab').forEach(t=>{
     t.classList.add('active');
     document.getElementById('panel-'+t.dataset.tab).classList.add('active');
     t.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    if(t.closest('#menu-perfil')) cerrarMenuPerfil();
     if(t.dataset.tab === 'kardex') poblarDatalistKardex();
     if(t.dataset.tab === 'contabilidad') calcularContabilidad();
   });
