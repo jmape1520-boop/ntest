@@ -7,7 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://unpkg.com/@zxing/browser@latest"></script>
+<script src="https://unpkg.com/@zxing/browser@0.1.5"></script>
 <script type="module">
   import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, sendPasswordResetEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
@@ -2881,7 +2881,7 @@ async function abrirScanner(callback){
   openModal(`
     <h3>Escanear código</h3>
     <video id="scanner-video" autoplay playsinline muted></video>
-    <p class="hint" id="scanner-status">Apuntá la cámara al código QR o de barras del producto.</p>
+    <p class="hint" id="scanner-status">Apuntá la cámara al código QR o de barras del producto. Mantenelo quieto y bien iluminado.</p>
     <div class="row"><button class="secondary" onclick="cerrarScanner()">Cancelar</button></div>
   `);
   if(typeof ZXingBrowser === 'undefined'){
@@ -2891,8 +2891,14 @@ async function abrirScanner(callback){
   }
   try{
     const videoEl = document.getElementById('scanner-video');
-    const codeReader = new ZXingBrowser.BrowserMultiFormatReader();
-    scannerControls = await codeReader.decodeFromVideoDevice(undefined, videoEl, (result)=>{
+    let hints = null;
+    if(typeof ZXingBrowser.DecodeHintType !== 'undefined'){
+      hints = new Map();
+      hints.set(ZXingBrowser.DecodeHintType.TRY_HARDER, true);
+    }
+    const codeReader = new ZXingBrowser.BrowserMultiFormatReader(hints);
+    const constraints = { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } };
+    scannerControls = await codeReader.decodeFromConstraints(constraints, videoEl, (result)=>{
       if(result){
         let codigo = result.getText().trim();
         try{ const obj = JSON.parse(codigo); if(obj && obj.codigo) codigo = obj.codigo; }catch(e){}
