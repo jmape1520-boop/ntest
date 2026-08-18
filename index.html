@@ -432,6 +432,7 @@
   .menu-mas-group.vacio{display:none;}
   .actions{display:flex;gap:4px;flex-wrap:wrap;}
 </style>
+<style id="print-page-style"></style>
 </head>
 <body>
 <div class="wrap" id="auth-screen" style="max-width:400px;padding-top:60px;">
@@ -1062,6 +1063,20 @@
       </div>
     </div>
 
+    <div class="accordion" id="acc-impresion">
+      <div class="accordion-head" onclick="toggleAccordion('acc-impresion')"><span>Formato de impresión</span><span class="chev">▾</span></div>
+      <div class="accordion-body">
+        <p class="hint">Para que el ticket se ajuste al papel que usa tu impresora.</p>
+        <div class="field-group">
+          <select id="c-formato-ticket" onchange="guardarConfig()">
+            <option value="carta">Hoja carta / A4 (impresora normal)</option>
+            <option value="80mm">Térmica 80mm</option>
+            <option value="58mm">Térmica 58mm</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
     <div class="accordion" id="acc-cocina">
       <div class="accordion-head" onclick="toggleAccordion('acc-cocina')"><span>Cocina</span><span class="chev">▾</span></div>
       <div class="accordion-body">
@@ -1285,7 +1300,7 @@ function estadoVacioBase(){
     calculosCosto: [], ajustesInventario: [], pedidosCocina: [], mesas: [], eliminacionesVentas: [],
     codigosVendedor: [],
     cotizaciones: [],
-    config: { tasa: 13, moneda: '$', sugerenciaEmpaque:false, moduloCocina:false, cobroCocina:'despues', meseroPuedeCobrar:false }
+    config: { tasa: 13, moneda: '$', sugerenciaEmpaque:false, moduloCocina:false, cobroCocina:'despues', meseroPuedeCobrar:false, formatoTicket:'carta' }
   };
 }
 async function cargarDatosTienda(){
@@ -1338,6 +1353,7 @@ async function cargarDatosTienda(){
   if(document.getElementById('c-modulo-cocina')) document.getElementById('c-modulo-cocina').checked = state.config.moduloCocina;
   if(document.getElementById('c-cobro-cocina')) document.getElementById('c-cobro-cocina').value = state.config.cobroCocina;
   if(document.getElementById('c-mesero-cobra')) document.getElementById('c-mesero-cobra').checked = state.config.meseroPuedeCobrar;
+  if(document.getElementById('c-formato-ticket')) document.getElementById('c-formato-ticket').value = state.config.formatoTicket || 'carta';
   if(document.getElementById('c-rubro') && state.config.rubro){
     const opciones = ['ropa','restaurante','ferreteria','farmacia','abarrotes','papeleria','belleza','servicios'];
     if(opciones.includes(state.config.rubro)){
@@ -2194,7 +2210,22 @@ function guardarConfig(){
   state.config.moduloCocina = document.getElementById('c-modulo-cocina').checked;
   state.config.cobroCocina = document.getElementById('c-cobro-cocina').value;
   state.config.meseroPuedeCobrar = document.getElementById('c-mesero-cobra').checked;
+  state.config.formatoTicket = document.getElementById('c-formato-ticket').value;
   guardar(); render(); aplicarVisibilidadCocina();
+}
+function aplicarFormatoImpresion(){
+  const formato = (state.config && state.config.formatoTicket) || 'carta';
+  const estilos = {
+    carta: `@page{ size:letter; margin:1.5cm; } #print-area{ max-width:100%; font-size:14px; }`,
+    '80mm': `@page{ size:80mm auto; margin:2mm; } #print-area{ width:76mm; font-size:11px; }`,
+    '58mm': `@page{ size:58mm auto; margin:1mm; } #print-area{ width:54mm; font-size:9px; }`
+  };
+  const el = document.getElementById('print-page-style');
+  if(el) el.textContent = estilos[formato] || estilos.carta;
+}
+function imprimirTicketActual(){
+  aplicarFormatoImpresion();
+  window.print();
 }
 function aplicarVisibilidadCocina(){
   const activo = !!state.config.moduloCocina && currentRol !== 'contador';
@@ -2988,6 +3019,7 @@ function abrirAccionesVentaMovil(id){
     <h3>${v.codigoVenta} — ${v.cliente || 'Venta directa'}</h3>
     <p class="hint">${v.fecha} · ${fmt(v.total)}</p>
     <div class="row"><button class="secondary" onclick="closeModal(); mostrarTicketPorId(${id});">Ver ticket</button></div>
+    ${v.requiereEnvio ? `<div class="row"><button class="secondary" onclick="closeModal(); verEnvio(${id});">Ver envío</button></div>` : ''}
     ${esContador ? '' : `
     <div class="row"><button onclick="closeModal(); editarVenta(${id});">Editar</button></div>
     <div class="row"><button class="danger" onclick="closeModal(); borrarVenta(${id});">Eliminar</button></div>`}
@@ -3036,7 +3068,7 @@ function mostrarTicket(v){
         ${v.requiereEnvio ? `<hr><div class="hint">Envío a: ${v.envio.direccion}${v.envio.transportista?' — '+v.envio.transportista:''}</div>` : ''}
       </div>
     </div>
-    <div class="row"><button class="secondary" onclick="closeModal()">Cerrar</button><button onclick="window.print()">Imprimir</button></div>
+    <div class="row"><button class="secondary" onclick="closeModal()">Cerrar</button><button onclick="imprimirTicketActual()">Imprimir</button></div>
   `;
   openModal(html);
 }
@@ -4393,7 +4425,7 @@ function render(){
     return `<div class="mini-card" onclick="abrirAccionesVentaMovil(${v.id})">
       <div class="mc-row">
         <div>
-          <p class="mc-title">${v.cliente || 'Venta directa'}</p>
+          <p class="mc-title">${v.cliente || 'Venta directa'}${v.requiereEnvio?` ${ICONO_CAJA}`:''}</p>
           <p class="hint mc-sub">${v.codigoVenta} · ${v.fecha}${v.historial.length?` · editado x${v.historial.length}`:''}</p>
         </div>
         <div class="mc-right">
