@@ -1074,6 +1074,14 @@
             <option value="58mm">Térmica 58mm</option>
           </select>
         </div>
+        <p class="hint">Tamaño de las etiquetas al descargar todos los QR en PDF (Inventario).</p>
+        <div class="field-group">
+          <select id="c-formato-etiqueta" onchange="guardarConfig()">
+            <option value="grande">Grande — 3 por fila</option>
+            <option value="mediana">Mediana — 4 por fila</option>
+            <option value="chica">Chica — 6 por fila (joyería, accesorios)</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -1300,7 +1308,7 @@ function estadoVacioBase(){
     calculosCosto: [], ajustesInventario: [], pedidosCocina: [], mesas: [], eliminacionesVentas: [],
     codigosVendedor: [],
     cotizaciones: [],
-    config: { tasa: 13, moneda: '$', sugerenciaEmpaque:false, moduloCocina:false, cobroCocina:'despues', meseroPuedeCobrar:false, formatoTicket:'carta' }
+    config: { tasa: 13, moneda: '$', sugerenciaEmpaque:false, moduloCocina:false, cobroCocina:'despues', meseroPuedeCobrar:false, formatoTicket:'carta', formatoEtiquetaQR:'grande' }
   };
 }
 async function cargarDatosTienda(){
@@ -1354,6 +1362,7 @@ async function cargarDatosTienda(){
   if(document.getElementById('c-cobro-cocina')) document.getElementById('c-cobro-cocina').value = state.config.cobroCocina;
   if(document.getElementById('c-mesero-cobra')) document.getElementById('c-mesero-cobra').checked = state.config.meseroPuedeCobrar;
   if(document.getElementById('c-formato-ticket')) document.getElementById('c-formato-ticket').value = state.config.formatoTicket || 'carta';
+  if(document.getElementById('c-formato-etiqueta')) document.getElementById('c-formato-etiqueta').value = state.config.formatoEtiquetaQR || 'grande';
   if(document.getElementById('c-rubro') && state.config.rubro){
     const opciones = ['ropa','restaurante','ferreteria','farmacia','abarrotes','papeleria','belleza','servicios'];
     if(opciones.includes(state.config.rubro)){
@@ -2106,9 +2115,22 @@ async function cargarKardex(){
   let saldo = producto.stock - movimientos.reduce((s,m)=>s+m.cambio,0);
   const filas = movimientos.map(m=>{
     saldo += m.cambio;
-    return `<tr><td>${m.fecha}</td><td>${m.tipo}</td><td>${m.ref}</td><td class="num" style="color:${m.cambio>0?'var(--moss)':'var(--rust)'}">${m.cambio>0?'+':''}${m.cambio}</td><td class="num">${saldo}</td></tr>`;
+    return { ...m, saldo };
   });
-  movEl.innerHTML = filas.length ? `<div class="table-scroll"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Referencia</th><th class="num">Cambio</th><th class="num">Saldo</th></tr></thead><tbody>${filas.join('')}</tbody></table></div>` : '<div class="empty">Sin movimientos todavía para este producto.</div>';
+  const filasTabla = filas.map(m=>`<tr><td>${m.fecha}</td><td>${m.tipo}</td><td>${m.ref}</td><td class="num" style="color:${m.cambio>0?'var(--moss)':'var(--rust)'}">${m.cambio>0?'+':''}${m.cambio}</td><td class="num">${m.saldo}</td></tr>`).join('');
+  const tarjetasMovil = filas.map(m=>`<div class="mini-card" style="cursor:default;">
+      <div class="mc-row">
+        <div>
+          <p class="mc-title">${m.tipo}</p>
+          <p class="hint mc-sub">${m.ref} · ${m.fecha}</p>
+        </div>
+        <div class="mc-right">
+          <p class="mc-price" style="color:${m.cambio>0?'var(--moss)':'var(--rust)'};">${m.cambio>0?'+':''}${m.cambio}</p>
+          <span class="hint" style="margin:0;">Saldo: ${m.saldo}</span>
+        </div>
+      </div>
+    </div>`).join('');
+  movEl.innerHTML = filas.length ? `<div class="desktop-table-wrap"><div class="table-scroll"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Referencia</th><th class="num">Cambio</th><th class="num">Saldo</th></tr></thead><tbody>${filasTabla}</tbody></table></div></div><div class="mobile-card-list">${tarjetasMovil}</div>` : '<div class="empty">Sin movimientos todavía para este producto.</div>';
 
   if(!currentCadenaId){ sucCard.style.display = 'none'; return; }
   sucCard.style.display = 'block';
@@ -2211,6 +2233,7 @@ function guardarConfig(){
   state.config.cobroCocina = document.getElementById('c-cobro-cocina').value;
   state.config.meseroPuedeCobrar = document.getElementById('c-mesero-cobra').checked;
   state.config.formatoTicket = document.getElementById('c-formato-ticket').value;
+  state.config.formatoEtiquetaQR = document.getElementById('c-formato-etiqueta').value;
   guardar(); render(); aplicarVisibilidadCocina();
 }
 function aplicarFormatoImpresion(){
@@ -3011,6 +3034,30 @@ function finalizarVenta(){
   mostrarTicket(venta);
 }
 
+function abrirAccionesCompraMovil(id){
+  const c = state.compras.find(x=>x.id===id);
+  if(!c) return;
+  const esPend = (c.metodoPago==='fiado'||c.metodoPago==='pagare') && c.estadoPago!=='pagado';
+  openModal(`
+    <h3>${c.producto}</h3>
+    <p class="hint">${c.fecha} · ${c.cantidad} x ${fmt(c.costo)} = ${fmt(c.total)}${c.proveedor?' · '+c.proveedor:''}</p>
+    ${esPend ? `<div class="row"><button onclick="closeModal(); marcarCompraPagada(${id});">Marcar pagado</button></div>` : ''}
+    <div class="row"><button class="danger" onclick="closeModal(); borrarCompra(${id});">Eliminar</button></div>
+    <div class="row"><button class="secondary" onclick="closeModal()">Cerrar</button></div>
+  `);
+}
+function abrirAccionesGastoMovil(id){
+  const g = state.gastos.find(x=>x.id===id);
+  if(!g) return;
+  const esPend = (g.metodoPago==='fiado'||g.metodoPago==='pagare') && g.estadoPago!=='pagado';
+  openModal(`
+    <h3>${g.concepto}</h3>
+    <p class="hint">${g.fecha} · ${g.categoria} · ${fmt(g.monto)}</p>
+    ${esPend ? `<div class="row"><button onclick="closeModal(); marcarGastoPagado(${id});">Marcar pagado</button></div>` : ''}
+    <div class="row"><button class="danger" onclick="closeModal(); borrarGasto(${id});">Eliminar</button></div>
+    <div class="row"><button class="secondary" onclick="closeModal()">Cerrar</button></div>
+  `);
+}
 function abrirAccionesVentaMovil(id){
   const v = state.ventas.find(x=>x.id===id);
   if(!v) return;
@@ -3311,7 +3358,13 @@ async function descargarTodosLosQR(){
   if(!window.jspdf){ mostrarAlerta('No se pudo cargar el generador de PDF. Revisá tu conexión e intentá de nuevo.'); return; }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
-  const qrSize = 45, marginX = 15, marginY = 20, gapX = 12, gapY = 22, perRow = 3;
+  const formatosEtiqueta = {
+    grande: { qrSize:45, marginX:15, marginY:20, gapX:12, gapY:22, perRow:3, tamFuente:8 },
+    mediana: { qrSize:35, marginX:12, marginY:16, gapX:8, gapY:18, perRow:4, tamFuente:7 },
+    chica: { qrSize:22, marginX:10, marginY:14, gapX:5, gapY:12, perRow:6, tamFuente:6 }
+  };
+  const f = formatosEtiqueta[(state.config && state.config.formatoEtiquetaQR) || 'grande'];
+  const { qrSize, marginX, marginY, gapX, gapY, perRow, tamFuente } = f;
   let x = marginX, y = marginY, col = 0;
   const temp = document.createElement('div');
   temp.style.position = 'fixed'; temp.style.left = '-9999px'; temp.style.top = '0';
@@ -3325,9 +3378,10 @@ async function descargarTodosLosQR(){
     const dataUrl = canvasEl ? canvasEl.toDataURL('image/png') : (imgEl ? imgEl.src : null);
     if(dataUrl){
       doc.addImage(dataUrl, 'PNG', x, y, qrSize, qrSize);
-      doc.setFontSize(8);
-      doc.text(it.nombre.length>22 ? it.nombre.slice(0,22)+'…' : it.nombre, x, y+qrSize+5, { maxWidth: qrSize });
-      doc.text(it.codigo, x, y+qrSize+10);
+      doc.setFontSize(tamFuente);
+      const maxChars = qrSize>35 ? 22 : (qrSize>25 ? 16 : 10);
+      doc.text(it.nombre.length>maxChars ? it.nombre.slice(0,maxChars)+'…' : it.nombre, x, y+qrSize+5, { maxWidth: qrSize });
+      doc.text(it.codigo, x, y+qrSize+ (qrSize>25?10:8));
     }
     col++;
     if(col>=perRow){ col=0; x=marginX; y+=qrSize+gapY; } else { x+=qrSize+gapX; }
@@ -4439,16 +4493,52 @@ function render(){
   document.getElementById('cf-bar').style.display = state.compras.length ? 'flex' : 'none';
   const cd = document.getElementById('cf-desde').value, ch = document.getElementById('cf-hasta').value, ct = (document.getElementById('cf-texto').value||'').toLowerCase();
   const comprasF = state.compras.filter(c => enRango(c.fecha,cd,ch) && (!ct || (c.codigo+c.producto+(c.proveedor||'')).toLowerCase().includes(ct)));
-  document.getElementById('lista-compras').innerHTML = comprasF.length ? `<div class="table-scroll"><table><thead><tr><th>Fecha</th><th>Código</th><th>Producto</th><th>Proveedor</th><th class="num">Cant.</th><th class="num">Costo unit.</th><th class="num">Total</th><th></th></tr></thead><tbody>${comprasF.map(c=>
-    `<tr><td>${c.fecha}</td><td><span class="code">${c.codigo}</span></td><td>${c.producto}</td><td>${c.proveedor||'—'}</td><td class="num">${c.cantidad}</td><td class="num">${fmt(c.costo)}</td><td class="num">${fmt(c.total)}</td><td><button class="danger" onclick="borrarCompra(${c.id})">Eliminar</button></td></tr>`
-  ).join('')}</tbody></table></div>` : '<div class="empty">Todavía no registrás compras.</div>';
+  const nombrePagoCompra = c => ({efectivo:'Efectivo',tarjeta:'Tarjeta',transferencia:'Transferencia',pagare:'Pagaré',fiado:'Fiado'}[c.metodoPago] || c.metodoPago || 'Efectivo');
+  document.getElementById('lista-compras').innerHTML = comprasF.length ? `<div class="desktop-table-wrap"><div class="table-scroll"><table><thead><tr><th>Fecha</th><th>Código</th><th>Producto</th><th>Proveedor</th><th class="num">Cant.</th><th class="num">Costo unit.</th><th class="num">Total</th><th>Pago</th><th></th></tr></thead><tbody>${comprasF.map(c=>{
+    const esPend = (c.metodoPago==='fiado'||c.metodoPago==='pagare') && c.estadoPago!=='pagado';
+    const pagoCelda = (c.metodoPago==='fiado'||c.metodoPago==='pagare') ? `${nombrePagoCompra(c)} <span class="tag ${esPend?'low':'ok'}">${esPend?'Pendiente':'Pagado'}</span>` : nombrePagoCompra(c);
+    return `<tr><td>${c.fecha}</td><td><span class="code">${c.codigo}</span></td><td>${c.producto}</td><td>${c.proveedor||'—'}</td><td class="num">${c.cantidad}</td><td class="num">${fmt(c.costo)}</td><td class="num">${fmt(c.total)}</td><td>${pagoCelda}</td><td><div class="actions-icons">${esPend?`<button class="btn-icon" title="Marcar pagado" onclick="marcarCompraPagada(${c.id})">${ICONO_CHECK}</button>`:''}<button class="btn-icon danger" title="Eliminar" onclick="borrarCompra(${c.id})">${ICONO_BASURA}</button></div></td></tr>`;
+  }).join('')}</tbody></table></div></div>
+  <div class="mobile-card-list">${comprasF.map(c=>{
+    const esPend = (c.metodoPago==='fiado'||c.metodoPago==='pagare') && c.estadoPago!=='pagado';
+    return `<div class="mini-card" onclick="abrirAccionesCompraMovil(${c.id})">
+      <div class="mc-row">
+        <div>
+          <p class="mc-title">${c.producto}</p>
+          <p class="hint mc-sub">${c.proveedor||'Sin proveedor'} · ${c.fecha}</p>
+        </div>
+        <div class="mc-right">
+          <p class="mc-price">${fmt(c.total)}</p>
+          <span class="tag ${esPend?'low':'ok'}">${esPend?'Pendiente':nombrePagoCompra(c)}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('')}</div>` : '<div class="empty">Todavía no registrás compras.</div>';
 
   document.getElementById('gf-bar').style.display = state.gastos.length ? 'flex' : 'none';
   const gd = document.getElementById('gf-desde').value, gh = document.getElementById('gf-hasta').value, gc = document.getElementById('gf-categoria').value;
   const gastosF = state.gastos.filter(g => enRango(g.fecha,gd,gh) && (!gc || g.categoria===gc));
-  document.getElementById('lista-gastos').innerHTML = gastosF.length ? `<div class="table-scroll"><table><thead><tr><th>Fecha</th><th>Concepto</th><th>Categoría</th><th class="num">Monto</th><th></th></tr></thead><tbody>${gastosF.map(g=>
-    `<tr><td>${g.fecha}</td><td>${g.concepto}</td><td>${g.categoria}</td><td class="num">${fmt(g.monto)}</td><td><button class="danger" onclick="borrarGasto(${g.id})">Eliminar</button></td></tr>`
-  ).join('')}</tbody></table></div>` : '<div class="empty">No hay gastos con ese filtro.</div>';
+  const nombrePagoGasto = g => ({efectivo:'Efectivo',tarjeta:'Tarjeta',transferencia:'Transferencia',pagare:'Pagaré',fiado:'Fiado'}[g.metodoPago] || g.metodoPago || 'Efectivo');
+  document.getElementById('lista-gastos').innerHTML = gastosF.length ? `<div class="desktop-table-wrap"><div class="table-scroll"><table><thead><tr><th>Fecha</th><th>Concepto</th><th>Categoría</th><th class="num">Monto</th><th>Pago</th><th></th></tr></thead><tbody>${gastosF.map(g=>{
+    const esPend = (g.metodoPago==='fiado'||g.metodoPago==='pagare') && g.estadoPago!=='pagado';
+    const pagoCelda = (g.metodoPago==='fiado'||g.metodoPago==='pagare') ? `${nombrePagoGasto(g)} <span class="tag ${esPend?'low':'ok'}">${esPend?'Pendiente':'Pagado'}</span>` : nombrePagoGasto(g);
+    return `<tr><td>${g.fecha}</td><td>${g.concepto}</td><td>${g.categoria}</td><td class="num">${fmt(g.monto)}</td><td>${pagoCelda}</td><td><div class="actions-icons">${esPend?`<button class="btn-icon" title="Marcar pagado" onclick="marcarGastoPagado(${g.id})">${ICONO_CHECK}</button>`:''}<button class="btn-icon danger" title="Eliminar" onclick="borrarGasto(${g.id})">${ICONO_BASURA}</button></div></td></tr>`;
+  }).join('')}</tbody></table></div></div>
+  <div class="mobile-card-list">${gastosF.map(g=>{
+    const esPend = (g.metodoPago==='fiado'||g.metodoPago==='pagare') && g.estadoPago!=='pagado';
+    return `<div class="mini-card" onclick="abrirAccionesGastoMovil(${g.id})">
+      <div class="mc-row">
+        <div>
+          <p class="mc-title">${g.concepto}</p>
+          <p class="hint mc-sub">${g.categoria} · ${g.fecha}</p>
+        </div>
+        <div class="mc-right">
+          <p class="mc-price">${fmt(g.monto)}</p>
+          <span class="tag ${esPend?'low':'ok'}">${esPend?'Pendiente':nombrePagoGasto(g)}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('')}</div>` : '<div class="empty">No hay gastos con ese filtro.</div>';
 
   document.getElementById('i-usar-calculo').innerHTML = '<option value="">O usar un cálculo guardado...</option>' + state.calculosCosto.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
   document.getElementById('lista-calculos').innerHTML = state.calculosCosto.length ? state.calculosCosto.map(c=>{
