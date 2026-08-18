@@ -301,6 +301,19 @@
   .btn-icon.danger{background:var(--error-container);color:var(--on-error-container);}
   .btn-icon.danger:hover{background:var(--error);color:var(--on-error);}
   .actions-icons{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .mobile-card-list{ display:block; }
+  .desktop-table-wrap{ display:none; }
+  .mini-card{ background:var(--surface-container); border-radius:var(--radius-md); padding:12px 14px; margin-bottom:8px; cursor:pointer; transition:background 0.15s; }
+  .mini-card:hover{ background:var(--surface-container-high); }
+  .mini-card .mc-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+  .mini-card .mc-title{ margin:0; font-weight:700; font-size:0.95rem; }
+  .mini-card .mc-sub{ margin:2px 0 0; }
+  .mini-card .mc-right{ text-align:right; flex:0 0 auto; }
+  .mini-card .mc-price{ margin:0; font-weight:800; }
+  @media (min-width: 640px){
+    .mobile-card-list{ display:none; }
+    .desktop-table-wrap{ display:block; }
+  }
   
   .btn-google { background: var(--surface); color: var(--on-surface); border: 1.5px solid var(--outline-variant); }
   .help-icon { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--primary-container); color: var(--on-primary-container); font-size: 12px; font-weight: 800; padding: 0; min-height: auto; cursor: pointer; vertical-align: middle; margin-left: 6px; }
@@ -2967,6 +2980,20 @@ function finalizarVenta(){
   mostrarTicket(venta);
 }
 
+function abrirAccionesVentaMovil(id){
+  const v = state.ventas.find(x=>x.id===id);
+  if(!v) return;
+  const esContador = currentRol === 'contador';
+  openModal(`
+    <h3>${v.codigoVenta} — ${v.cliente || 'Venta directa'}</h3>
+    <p class="hint">${v.fecha} · ${fmt(v.total)}</p>
+    <div class="row"><button class="secondary" onclick="closeModal(); mostrarTicketPorId(${id});">Ver ticket</button></div>
+    ${esContador ? '' : `
+    <div class="row"><button onclick="closeModal(); editarVenta(${id});">Editar</button></div>
+    <div class="row"><button class="danger" onclick="closeModal(); borrarVenta(${id});">Eliminar</button></div>`}
+    <div class="row"><button class="secondary" onclick="closeModal()">Cerrar</button></div>
+  `);
+}
 function mostrarTicketPorId(id){
   const v = state.ventas.find(x=>x.id===id);
   if(v) mostrarTicket(v);
@@ -4353,12 +4380,29 @@ function render(){
   document.getElementById('vf-bar').style.display = state.ventas.length ? 'flex' : 'none';
   const vd = document.getElementById('vf-desde').value, vh = document.getElementById('vf-hasta').value, vt = (document.getElementById('vf-texto').value||'').toLowerCase();
   const ventasF = state.ventas.filter(v => enRango(v.fecha,vd,vh) && (!vt || (v.items.map(it=>it.codigo+it.producto).join(' ')+(v.cliente||'')).toLowerCase().includes(vt)));
-  document.getElementById('lista-ventas').innerHTML = ventasF.length ? `<div class="table-scroll"><table><thead><tr><th>Cód.</th><th>Fecha</th><th>Productos</th><th>Cliente</th><th>Pago</th><th class="num">Desc.</th><th class="num">Base</th><th class="num">Impuesto</th><th class="num">Total</th><th class="center">Envío</th><th class="center">Enviado</th><th></th></tr></thead><tbody>${ventasF.map(v=>{
+  document.getElementById('lista-ventas').innerHTML = ventasF.length ? `<div class="desktop-table-wrap"><div class="table-scroll"><table><thead><tr><th>Cód.</th><th>Fecha</th><th>Productos</th><th>Cliente</th><th>Pago</th><th class="num">Desc.</th><th class="num">Base</th><th class="num">Impuesto</th><th class="num">Total</th><th class="center">Envío</th><th class="center">Enviado</th><th></th></tr></thead><tbody>${ventasF.map(v=>{
     const resumenItems = v.items.map(it=>`<span class="code" style="margin-right:2px;">${it.codigo||'—'}</span>${it.cantidad}x ${it.producto}${it.promoAplicada?' '+ICONO_TAG:''}`).join('<br>');
     const nombrePago = {efectivo:'Efectivo',tarjeta:'Tarjeta',transferencia:'Transferencia',pagare:'Pagaré',fiado:'Fiado'}[v.metodoPago] || v.metodoPago;
     const pagoCelda = (v.metodoPago==='fiado'||v.metodoPago==='pagare') ? `${nombrePago} <span class="tag ${v.estadoPago==='pagado'?'ok':'low'}">${v.estadoPago==='pagado'?'Pagado':'Pendiente'}</span>` : nombrePago;
     return `<tr><td><span class="code">${v.codigoVenta}</span></td><td>${v.fecha}</td><td>${resumenItems}${v.vendedorAplicado?` <span class="tag ok">${ICONO_PERSONA} Cód. vendedor</span>`:''}${v.historial.length?` <span class="tag edit" onclick="verHistorial(${v.id})">editado x${v.historial.length}</span>`:''}</td><td>${v.cliente||'—'}<br><span class="hint" style="margin:0;">${ICONO_PERSONA} ${v.registradoPor.nombre}</span></td><td>${pagoCelda}</td><td class="num">${v.descuentoMonto?fmt(v.descuentoMonto):'—'}</td><td class="num">${fmt(v.subtotal)}</td><td class="num">${fmt(v.impuesto)}</td><td class="num">${fmt(v.total)}</td><td class="center">${v.requiereEnvio?`<span class="tag low" style="cursor:pointer;" onclick="verEnvio(${v.id})">${ICONO_CAJA}</span>`:'—'}</td><td class="center"><input type="checkbox" ${v.enviado?'checked':''} onchange="toggleEnviado(${v.id})"></td><td><div class="actions-icons"><button class="btn-icon" title="Ver ticket" onclick="mostrarTicketPorId(${v.id})">${ICONO_TICKET}</button><button class="btn-icon venta-accion-editar" title="Editar" onclick="editarVenta(${v.id})">${ICONO_LAPIZ}</button><button class="btn-icon danger venta-accion-editar" title="Eliminar" onclick="borrarVenta(${v.id})">${ICONO_BASURA}</button></div></td></tr>`;
-  }).join('')}</tbody></table></div>` : '<div class="empty">No hay ventas con ese filtro.</div>';
+  }).join('')}</tbody></table></div></div>
+  <div class="mobile-card-list">${ventasF.map(v=>{
+    const nombrePago = {efectivo:'Efectivo',tarjeta:'Tarjeta',transferencia:'Transferencia',pagare:'Pagaré',fiado:'Fiado'}[v.metodoPago] || v.metodoPago;
+    const esPendiente = (v.metodoPago==='fiado'||v.metodoPago==='pagare') && v.estadoPago!=='pagado';
+    const etiquetaPago = (v.metodoPago==='fiado'||v.metodoPago==='pagare') ? (v.estadoPago==='pagado'?'Pagado':'Pendiente') : nombrePago;
+    return `<div class="mini-card" onclick="abrirAccionesVentaMovil(${v.id})">
+      <div class="mc-row">
+        <div>
+          <p class="mc-title">${v.cliente || 'Venta directa'}</p>
+          <p class="hint mc-sub">${v.codigoVenta} · ${v.fecha}${v.historial.length?` · editado x${v.historial.length}`:''}</p>
+        </div>
+        <div class="mc-right">
+          <p class="mc-price">${fmt(v.total)}</p>
+          <span class="tag ${esPendiente?'low':'ok'}">${etiquetaPago}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('')}</div>` : '<div class="empty">No hay ventas con ese filtro.</div>';
 
   document.getElementById('cf-bar').style.display = state.compras.length ? 'flex' : 'none';
   const cd = document.getElementById('cf-desde').value, ch = document.getElementById('cf-hasta').value, ct = (document.getElementById('cf-texto').value||'').toLowerCase();
