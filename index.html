@@ -3034,6 +3034,19 @@ function finalizarVenta(){
   mostrarTicket(venta);
 }
 
+function abrirAccionesProductoMovil(id){
+  const p = state.inventario.find(x=>x.id===id);
+  if(!p) return;
+  openModal(`
+    <h3>${p.producto}</h3>
+    <p class="hint"><span class="code">${p.codigo}</span> · ${fmtCantidad(p.stock, p.unidad)}${p.precioVenta?' · '+fmt(p.precioVenta):''}</p>
+    ${p.qr ? `<div class="row"><button class="secondary" onclick="closeModal(); verQR('${p.codigo}');">Ver QR</button></div>` : ''}
+    <div class="row"><button class="secondary" onclick="closeModal(); abrirAjusteInventario(${id});">Ajustar stock</button></div>
+    <div class="row"><button onclick="closeModal(); editarProducto(${id});">Editar</button></div>
+    <div class="row"><button class="danger" onclick="closeModal(); borrarProducto(${id});">Eliminar</button></div>
+    <div class="row"><button class="secondary" onclick="closeModal()">Cerrar</button></div>
+  `);
+}
 function abrirAccionesCompraMovil(id){
   const c = state.compras.find(x=>x.id===id);
   if(!c) return;
@@ -4628,7 +4641,38 @@ document.getElementById('lista-combos').innerHTML = state.combos.length ? state.
     if(p.grupoNombre && gruposColapsados.has(p.grupoNombre)) return filaGrupo;
     return filaGrupo + `<tr><td><span class="code">${p.codigo}</span></td><td>${p.grupoNombre ? '↳ '+p.producto.replace(p.grupoNombre,'').trim() : p.producto}${p.categoria?` <span class="hint" style="margin:0;">· ${p.categoria}</span>`:''}${p.esInsumo?` <span class="tag edit">Insumo</span>`:''}</td><td class="num">${fmtCantidad(p.stock, p.unidad)}</td><td class="num">${p.precioVenta?fmt(p.precioVenta):'—'}</td><td>${p.stock<=p.reorden ? '<span class="tag low">Reordenar</span>' : '<span class="tag ok">Ok</span>'}</td><td><div class="actions-icons">${p.qr?`<button class="btn-icon" title="Ver QR" onclick="verQR('${p.codigo}')">${ICONO_QRCHICO}</button>`:''}<button class="btn-icon" title="Ajustar stock" onclick="abrirAjusteInventario(${p.id})">${ICONO_SLIDERS}</button><button class="btn-icon" title="Editar" onclick="editarProducto(${p.id})">${ICONO_LAPIZ}</button><button class="btn-icon danger" title="Eliminar" onclick="borrarProducto(${p.id})">${ICONO_BASURA}</button></div></td></tr>`;
   }).join('');
-  document.getElementById('lista-inventario').innerHTML = inventarioFiltrado.length ? `<div class="table-scroll"><table><thead><tr><th>Código</th><th>Producto</th><th class="num">Stock</th><th class="num">Precio venta</th><th>Estado</th><th></th></tr></thead><tbody>${filasInventario}</tbody></table></div>` : (state.inventario.length ? '<div class="empty">No hay productos con ese filtro.</div>' : '<div class="empty">Todavía no agregás productos.</div>');
+
+  const gruposVistosMovil = new Set();
+  const tarjetasInventario = inventarioFiltrado.map(p=>{
+    let tarjetaGrupo = '';
+    if(p.grupoNombre && !gruposVistosMovil.has(p.grupoNombre)){
+      gruposVistosMovil.add(p.grupoNombre);
+      const cantidadEnGrupo = inventarioFiltrado.filter(x=>x.grupoNombre===p.grupoNombre).length;
+      const colapsado = gruposColapsados.has(p.grupoNombre);
+      tarjetaGrupo = `<div class="mini-card" style="background:var(--primary-container);" onclick="toggleGrupoColapsado('${p.grupoNombre.replace(/'/g,"\\'")}')">
+        <div class="mc-row">
+          <p class="mc-title">${colapsado?'▸':'▾'} ${p.grupoNombre} <span class="hint" style="margin:0;">(${cantidadEnGrupo} variantes)</span></p>
+          <div class="actions-icons" onclick="event.stopPropagation();"><button class="btn-icon" title="Editar grupo" onclick="editarGrupoVariantes('${p.grupoNombre.replace(/'/g,"\\'")}')">${ICONO_LAPIZ}</button><button class="btn-icon danger" title="Eliminar grupo" onclick="borrarGrupoVariantes('${p.grupoNombre.replace(/'/g,"\\'")}')">${ICONO_BASURA}</button></div>
+        </div>
+      </div>`;
+    }
+    if(p.grupoNombre && gruposColapsados.has(p.grupoNombre)) return tarjetaGrupo;
+    const nombreMostrado = p.grupoNombre ? '↳ '+p.producto.replace(p.grupoNombre,'').trim() : p.producto;
+    return tarjetaGrupo + `<div class="mini-card" onclick="abrirAccionesProductoMovil(${p.id})">
+      <div class="mc-row">
+        <div>
+          <p class="mc-title">${nombreMostrado}${p.esInsumo?' <span class="tag edit">Insumo</span>':''}</p>
+          <p class="hint mc-sub">${p.codigo}${p.categoria?' · '+p.categoria:''}</p>
+        </div>
+        <div class="mc-right">
+          <p class="mc-price">${p.precioVenta?fmt(p.precioVenta):'—'}</p>
+          <span class="tag ${p.stock<=p.reorden?'low':'ok'}">${fmtCantidad(p.stock, p.unidad)}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('lista-inventario').innerHTML = inventarioFiltrado.length ? `<div class="desktop-table-wrap"><div class="table-scroll"><table><thead><tr><th>Código</th><th>Producto</th><th class="num">Stock</th><th class="num">Precio venta</th><th>Estado</th><th></th></tr></thead><tbody>${filasInventario}</tbody></table></div></div><div class="mobile-card-list">${tarjetasInventario}</div>` : (state.inventario.length ? '<div class="empty">No hay productos con ese filtro.</div>' : '<div class="empty">Todavía no agregás productos.</div>');
 }
 function limpiarFiltroInventario(){
   document.getElementById('if-texto').value = '';
