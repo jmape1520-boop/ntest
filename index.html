@@ -4283,12 +4283,20 @@ function calcularComparacion(desde, hasta, m1){
   const el = document.getElementById('conta-comparacion');
   if(!d2 || !h2){ el.innerHTML = ''; return; }
   const m2 = calcularMetricasPeriodo(d2, h2, state.ventas, state.compras, state.gastos);
-  el.innerHTML = `<div class="table-scroll"><table><thead><tr><th></th><th class="num">${desde} a ${hasta}</th><th class="num">${d2} a ${h2}</th></tr></thead><tbody>
-    <tr><td>Ventas</td><td class="num">${fmt(m1.ventasTotal)}</td><td class="num">${fmt(m2.ventasTotal)}</td></tr>
-    <tr><td>Costo de lo comprado</td><td class="num">${fmt(m1.costoVendido)}</td><td class="num">${fmt(m2.costoVendido)}</td></tr>
-    <tr><td>Gastos</td><td class="num">${fmt(m1.gastosTotal)}</td><td class="num">${fmt(m2.gastosTotal)}</td></tr>
-    <tr><td>Balance del período</td><td class="num">${fmt(m1.gananciaNeta)}</td><td class="num">${fmt(m2.gananciaNeta)}</td></tr>
-  </tbody></table></div>`;
+  const filasComp = [
+    { lbl:'Ventas', v1:m1.ventasTotal, v2:m2.ventasTotal },
+    { lbl:'Costo de lo comprado', v1:m1.costoVendido, v2:m2.costoVendido },
+    { lbl:'Gastos', v1:m1.gastosTotal, v2:m2.gastosTotal },
+    { lbl:'Balance del período', v1:m1.gananciaNeta, v2:m2.gananciaNeta }
+  ];
+  el.innerHTML = `<div class="desktop-table-wrap"><div class="table-scroll"><table><thead><tr><th></th><th class="num">${desde} a ${hasta}</th><th class="num">${d2} a ${h2}</th></tr></thead><tbody>${filasComp.map(f=>
+    `<tr><td>${f.lbl}</td><td class="num">${fmt(f.v1)}</td><td class="num">${fmt(f.v2)}</td></tr>`
+  ).join('')}</tbody></table></div></div>
+  <div class="mobile-card-list">${filasComp.map(f=>`<div class="mini-card" style="cursor:default;">
+      <p class="mc-title" style="margin:0 0 6px;">${f.lbl}</p>
+      <div class="mc-row"><p class="hint mc-sub" style="margin:0;">${desde} a ${hasta}: ${fmt(f.v1)}</p></div>
+      <div class="mc-row"><p class="hint mc-sub" style="margin:0;">${d2} a ${h2}: ${fmt(f.v2)}</p></div>
+    </div>`).join('')}</div>`;
 }
 async function renderDesgloseTiendas(desde, hasta){
   const el = document.getElementById('conta-tiendas');
@@ -4307,9 +4315,21 @@ async function renderDesgloseTiendas(desde, hasta){
     const m = calcularMetricasPeriodo(desde, hasta, datos.ventas, datos.compras, datos.gastos);
     return { nombre: t?t.nombre:id, ...m };
   }));
-  el.innerHTML = `<div class="table-scroll"><table><thead><tr><th>Tienda</th><th class="num">Ventas</th><th class="num">Gastos</th><th class="num">Ganancia</th></tr></thead><tbody>${filas.map(f=>
+  const totVentas = filas.reduce((s,f)=>s+f.ventasTotal,0), totGastos = filas.reduce((s,f)=>s+f.gastosTotal,0), totGanancia = filas.reduce((s,f)=>s+f.gananciaNeta,0);
+  el.innerHTML = `<div class="desktop-table-wrap"><div class="table-scroll"><table><thead><tr><th>Tienda</th><th class="num">Ventas</th><th class="num">Gastos</th><th class="num">Ganancia</th></tr></thead><tbody>${filas.map(f=>
     `<tr><td>${f.nombre}</td><td class="num">${fmt(f.ventasTotal)}</td><td class="num">${fmt(f.gastosTotal)}</td><td class="num">${fmt(f.gananciaNeta)}</td></tr>`
-  ).join('')}<tr style="font-weight:700;"><td>Total combinado</td><td class="num">${fmt(filas.reduce((s,f)=>s+f.ventasTotal,0))}</td><td class="num">${fmt(filas.reduce((s,f)=>s+f.gastosTotal,0))}</td><td class="num">${fmt(filas.reduce((s,f)=>s+f.gananciaNeta,0))}</td></tr></tbody></table></div>`;
+  ).join('')}<tr style="font-weight:700;"><td>Total combinado</td><td class="num">${fmt(totVentas)}</td><td class="num">${fmt(totGastos)}</td><td class="num">${fmt(totGanancia)}</td></tr></tbody></table></div></div>
+  <div class="mobile-card-list">${filas.map(f=>`<div class="mini-card" style="cursor:default;">
+      <p class="mc-title" style="margin:0 0 4px;">${f.nombre}</p>
+      <p class="hint mc-sub" style="margin:0;">Ventas: ${fmt(f.ventasTotal)} · Gastos: ${fmt(f.gastosTotal)}</p>
+      <p class="mc-price" style="margin:4px 0 0;">${fmt(f.gananciaNeta)}</p>
+    </div>`).join('')}
+    <div class="mini-card" style="cursor:default;background:var(--primary-container);">
+      <p class="mc-title" style="margin:0 0 4px;">Total combinado</p>
+      <p class="hint mc-sub" style="margin:0;">Ventas: ${fmt(totVentas)} · Gastos: ${fmt(totGastos)}</p>
+      <p class="mc-price" style="margin:4px 0 0;">${fmt(totGanancia)}</p>
+    </div>
+  </div>`;
 }
 function exportarContabilidadExcel(){
   const desde = document.getElementById('ct-desde').value, hasta = document.getElementById('ct-hasta').value;
@@ -4472,9 +4492,15 @@ function render(){
     ...state.compras.map(c=>({fecha:c.fecha,id:c.id,label:c.producto,monto:c.total,signo:-1})),
     ...state.gastos.map(g=>({fecha:g.fecha,id:g.id,label:g.concepto,monto:g.monto,signo:-1}))
   ].sort((a,b)=> b.id - a.id).slice(0,6);
-  document.getElementById('recientes').innerHTML = recientes.length ? `<div class="table-scroll"><table><tbody>${recientes.map(r=>
+  document.getElementById('recientes').innerHTML = recientes.length ? `<div class="desktop-table-wrap"><div class="table-scroll"><table><tbody>${recientes.map(r=>
     `<tr><td>${r.fecha}</td><td>${r.label}</td><td class="num" style="color:${r.signo>0?'var(--moss)':'var(--rust)'}">${r.signo>0?'+':'-'}${fmt(r.monto)}</td></tr>`
-  ).join('')}</tbody></table></div>` : '<div class="empty">Sin movimientos todavía.</div>';
+  ).join('')}</tbody></table></div></div>
+  <div class="mobile-card-list">${recientes.map(r=>`<div class="mini-card" style="cursor:default;">
+      <div class="mc-row">
+        <div><p class="mc-title">${r.label}</p><p class="hint mc-sub">${r.fecha}</p></div>
+        <p class="mc-price" style="color:${r.signo>0?'var(--moss)':'var(--rust)'};margin:0;">${r.signo>0?'+':'-'}${fmt(r.monto)}</p>
+      </div>
+    </div>`).join('')}</div>` : '<div class="empty">Sin movimientos todavía.</div>';
 
   document.getElementById('vf-bar').style.display = state.ventas.length ? 'flex' : 'none';
   const vd = document.getElementById('vf-desde').value, vh = document.getElementById('vf-hasta').value, vt = (document.getElementById('vf-texto').value||'').toLowerCase();
