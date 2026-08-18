@@ -555,6 +555,10 @@
   </div>
 
   <div class="panel" id="panel-ventas">
+    <div class="card" id="card-menu-rapido" style="display:none;">
+      <h3>Menú rápido</h3>
+      <div id="menu-rapido-categorias"></div>
+    </div>
     <div class="card" id="card-pedidos-cobrar" style="display:none;">
       <h3>Pedidos listos para cobrar</h3>
       <div id="lista-pedidos-cobrar"></div>
@@ -1104,6 +1108,10 @@
           <p class="hint">Mesas — para que el mesero elija de una lista en vez de escribir.</p>
           <div id="lista-mesas" style="margin-bottom:8px;"></div>
           <div class="row"><input type="text" id="nueva-mesa" placeholder="Ej. Mesa 4"><button class="mini" onclick="agregarMesa()">Agregar</button></div>
+          <hr>
+          <p class="hint">Categorías de menú — para que el mesero y el cajero vean el menú en tarjetas por categoría en vez de tener que escribir.</p>
+          <div id="lista-categorias-menu" style="margin-bottom:8px;"></div>
+          <div class="row"><input type="text" id="nueva-categoria-menu" placeholder="Ej. Bebidas"><button class="mini" onclick="agregarCategoriaMenu()">Agregar</button></div>
         </div>
       </div>
     </div>
@@ -1258,6 +1266,10 @@ function normalizarEstado(){
   state.eliminacionesVentas = state.eliminacionesVentas || [];
   state.mesas = state.mesas || [];
   state.cotizaciones = state.cotizaciones || [];
+  if(state.categoriasMenu===undefined){
+    state.categoriasMenu = ['Entradas', 'Platos fuertes', 'Bebidas', 'Postres'];
+  }
+  state.combos.forEach(c=>{ if(c.categoriaMenu===undefined) c.categoriaMenu = ''; });
   if(state.tiposFiscales===undefined){
     state.tiposFiscales = [
       { id:1, nombre:'Gravado (IVA 13%)', categoria:'iva', tasa:13 },
@@ -2261,6 +2273,7 @@ function aplicarVisibilidadCocina(){
   if(tabCocina) tabCocina.style.display = activo ? 'flex' : 'none';
   actualizarFlechasTabs();
   if(mesaWrap) mesaWrap.style.display = activo ? 'flex' : 'none';
+  renderMenuRapido();
   if(extra) extra.style.display = state.config.moduloCocina ? 'block' : 'none';
   const opcionMesero = document.getElementById('ve-rol-mesero');
   const opcionCocina = document.getElementById('ve-rol-cocina');
@@ -2305,6 +2318,31 @@ function renderMesas(){
     const actual = sel.value;
     sel.innerHTML = '<option value="">Sin mesa</option>' + state.mesas.map(m=>`<option value="${m}">${m}</option>`).join('');
     sel.value = state.mesas.includes(actual) ? actual : '';
+  }
+}
+function agregarCategoriaMenu(){
+  const nombre = document.getElementById('nueva-categoria-menu').value.trim();
+  if(!nombre) return;
+  if(state.categoriasMenu.some(c=>c.toLowerCase()===nombre.toLowerCase())){ mostrarAlerta('Esa categoría ya existe.'); return; }
+  state.categoriasMenu.push(nombre);
+  document.getElementById('nueva-categoria-menu').value = '';
+  guardar(); render();
+}
+function borrarCategoriaMenu(nombre){
+  state.categoriasMenu = state.categoriasMenu.filter(c=>c!==nombre);
+  guardar(); render();
+}
+function renderCategoriasMenuConfig(){
+  const el = document.getElementById('lista-categorias-menu');
+  if(!el) return;
+  el.innerHTML = state.categoriasMenu.length ? state.categoriasMenu.map(c=>
+    `<span class="tag edit" style="margin:0 6px 6px 0;display:inline-flex;align-items:center;gap:6px;">${c} <button class="mini" style="padding:2px 6px;min-height:auto;" onclick="borrarCategoriaMenu('${c.replace(/'/g,"\\'")}')">${ICONO_X}</button></span>`
+  ).join('') : '<p class="empty">Todavía no agregás categorías.</p>';
+  const sel = document.getElementById('combo-categoria-menu');
+  if(sel){
+    const actual = sel.value;
+    sel.innerHTML = '<option value="">Sin categoría</option>' + state.categoriasMenu.map(c=>`<option value="${c}">${c}</option>`).join('');
+    sel.value = state.categoriasMenu.includes(actual) ? actual : '';
   }
 }
 function limpiarFiltro(p){
@@ -2698,6 +2736,36 @@ function agregarItemCarrito(){
   carritoActual.push(item);
   limpiarCamposItem();
   renderCarrito();
+}
+let categoriaMenuSeleccionada = '';
+function renderMenuRapido(){
+  const wrap = document.getElementById('card-menu-rapido');
+  if(!wrap) return;
+  if(!state.config.moduloCocina){ wrap.style.display = 'none'; return; }
+  const combosConCategoria = state.combos.filter(c=>c.activo && c.categoriaMenu);
+  if(!combosConCategoria.length){ wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  const categorias = [...new Set(combosConCategoria.map(c=>c.categoriaMenu))];
+  const chips = categorias.map(cat=>`<button class="${categoriaMenuSeleccionada===cat?'mini':'btn-tool'}" style="min-height:34px;padding:6px 14px;" onclick="seleccionarCategoriaMenu('${cat.replace(/'/g,"\\'")}')" type="button">${cat}</button>`).join(' ');
+  const mostrar = categoriaMenuSeleccionada ? combosConCategoria.filter(c=>c.categoriaMenu===categoriaMenuSeleccionada) : combosConCategoria;
+  const tarjetas = mostrar.map(c=>`<div class="mini-card" onclick="agregarComboDesdeMenuRapido('${c.codigo}')" style="text-align:center;">
+      <p class="mc-title">${c.nombre}</p>
+      <p class="mc-price" style="margin:4px 0 0;">${fmt(c.precioVenta)}</p>
+    </div>`).join('');
+  document.getElementById('menu-rapido-categorias').innerHTML = `<div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:10px;">${chips}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;">${tarjetas}</div>`;
+}
+function seleccionarCategoriaMenu(cat){
+  categoriaMenuSeleccionada = categoriaMenuSeleccionada===cat ? '' : cat;
+  renderMenuRapido();
+}
+function agregarComboDesdeMenuRapido(codigo){
+  const combo = state.combos.find(c=>c.codigo===codigo && c.activo);
+  if(!combo) return;
+  document.getElementById('v-codigo').value = combo.codigo;
+  document.getElementById('v-producto').value = combo.nombre;
+  document.getElementById('v-precio').value = combo.precioVenta;
+  document.getElementById('v-cantidad').value = 1;
+  abrirPersonalizarCombo(combo);
 }
 function abrirPersonalizarCombo(combo){
   const cantidad = parseFloat(document.getElementById('v-cantidad').value) || 1;
@@ -4001,6 +4069,10 @@ function abrirCrearCombo(idExistente){
     <p class="hint">Componentes — "Producto fijo" es siempre lo mismo (ej. la hamburguesa). "Grupo de variantes" deja que el vendedor elija la talla/color al momento de vender.</p>
     <div id="co-componentes"></div>
     <div class="row"><button class="mini" type="button" onclick="agregarSlotCombo()">${ICONO_MAS} Agregar componente</button></div>
+    <div class="field-group" id="co-categoria-menu-wrap" style="display:none;">
+      <label>Categoría de menú (para el menú en tarjetas de Mesero/Caja)</label>
+      <select id="combo-categoria-menu"><option value="">Sin categoría</option></select>
+    </div>
     <div class="row"><label class="check-line"><input type="checkbox" id="co-qr" ${existente&&existente.qr?'checked':''}> Generar código QR para el combo</label></div>
     <p class="hint" id="co-error" style="color:var(--rust);"></p>
     <div class="row">
@@ -4009,6 +4081,11 @@ function abrirCrearCombo(idExistente){
     </div>
   `);
   renderSlotsCombo();
+  if(state.config.moduloCocina){
+    document.getElementById('co-categoria-menu-wrap').style.display = 'block';
+    renderCategoriasMenuConfig();
+    if(existente && existente.categoriaMenu) document.getElementById('combo-categoria-menu').value = existente.categoriaMenu;
+  }
 }
 function renderSlotsCombo(){
   const el = document.getElementById('co-componentes');
@@ -4044,6 +4121,7 @@ function confirmarCrearCombo(){
   const nombre = document.getElementById('co-nombre').value.trim().toUpperCase();
   const precioVenta = parseFloat(document.getElementById('co-precio').value) || 0;
   const qr = document.getElementById('co-qr').checked;
+  const categoriaMenu = state.config.moduloCocina && document.getElementById('combo-categoria-menu') ? document.getElementById('combo-categoria-menu').value : '';
   const err = document.getElementById('co-error');
   const componentes = comboSlots
     .filter(s=>s.tipo==='producto' && s.codigo)
@@ -4054,12 +4132,12 @@ function confirmarCrearCombo(){
 
   if(comboEditandoId){
     const c = state.combos.find(x=>x.id===comboEditandoId);
-    c.nombre = nombre; c.precioVenta = precioVenta; c.componentes = componentes; c.qr = qr;
+    c.nombre = nombre; c.precioVenta = precioVenta; c.componentes = componentes; c.qr = qr; c.categoriaMenu = categoriaMenu;
     closeModal();
     guardar(); render();
   } else {
     const codigo = generarCodigo(nombre);
-    state.combos.push({id:Date.now(), codigo, nombre, precioVenta, activo:true, componentes, qr});
+    state.combos.push({id:Date.now(), codigo, nombre, precioVenta, activo:true, componentes, qr, categoriaMenu});
     closeModal();
     guardar(); render();
   }
@@ -4442,6 +4520,8 @@ function render(){
   renderCuentasPorPagar();
   renderCocina();
   renderMesas();
+  renderCategoriasMenuConfig();
+  renderMenuRapido();
   renderTiposFiscales();
   renderCotizaciones();
   renderPedidosListosParaCobrar();
