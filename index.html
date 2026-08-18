@@ -482,6 +482,7 @@
           <div class="tab" data-tab="combos"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect></svg><span class="tab-label">Combos y Recetas</span></div>
           <div class="tab" data-tab="promos"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83 3.83 11l9.58 9.59a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.83Z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="tab-label">Promociones</span></div>
           <div class="tab" data-tab="contabilidad"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg><span class="tab-label">Contabilidad</span></div>
+          <div class="tab" data-tab="cotizaciones"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="13" y2="17"></line></svg><span class="tab-label">Cotizaciones</span></div>
           <div class="tab" data-tab="config"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"></path></svg><span class="tab-label">Configuración</span></div>
         </div>
         <div class="menu-perfil-footer">
@@ -942,6 +943,37 @@
     <div id="lista-cocina"></div>
   </div>
 
+  <div class="panel" id="panel-cotizaciones">
+    <h2 style="margin:0 0 14px;">Cotizaciones</h2>
+    <div class="card">
+      <h3>Nueva cotización</h3>
+      <div class="row">
+        <input type="text" id="cot-cliente" placeholder="Nombre del cliente">
+        <input type="text" id="cot-telefono" placeholder="WhatsApp (con código de país, ej. 50370001234)">
+      </div>
+      <div class="row">
+        <input type="email" id="cot-email" placeholder="Correo (opcional)">
+        <input type="date" id="cot-valido-hasta" placeholder="Válida hasta (opcional)">
+      </div>
+      <hr>
+      <div class="row">
+        <input list="nombres-inv" type="text" id="cot-producto" placeholder="Producto" oninput="autollenarCotizacion()">
+        <input type="number" id="cot-cantidad" placeholder="Cantidad" min="1">
+      </div>
+      <div class="row">
+        <input type="number" id="cot-precio" placeholder="Precio unitario" step="0.01">
+        <button class="secondary" type="button" onclick="agregarItemCotizacion()">+ Agregar</button>
+      </div>
+      <div id="cot-carrito"></div>
+      <div class="row"><input type="text" id="cot-notas" placeholder="Notas (opcional, ej. incluye instalación)"></div>
+      <div class="row"><button onclick="guardarCotizacion()">Generar cotización</button></div>
+    </div>
+    <div class="card">
+      <h3>Historial de cotizaciones</h3>
+      <div id="lista-cotizaciones"></div>
+    </div>
+  </div>
+
   <div class="panel" id="panel-config">
     <div class="accordion" id="acc-rubro">
       <div class="accordion-head" onclick="toggleAccordion('acc-rubro')"><span>Rubro de tu negocio</span><span class="chev">▾</span></div>
@@ -1189,6 +1221,7 @@ function normalizarEstado(){
   state.pedidosCocina = state.pedidosCocina || [];
   state.eliminacionesVentas = state.eliminacionesVentas || [];
   state.mesas = state.mesas || [];
+  state.cotizaciones = state.cotizaciones || [];
   if(state.tiposFiscales===undefined){
     state.tiposFiscales = [
       { id:1, nombre:'Gravado (IVA 13%)', categoria:'iva', tasa:13 },
@@ -1238,6 +1271,7 @@ function estadoVacioBase(){
     ventas: [], compras: [], gastos: [], inventario: [], promociones: [], combos: [],
     calculosCosto: [], ajustesInventario: [], pedidosCocina: [], mesas: [], eliminacionesVentas: [],
     codigosVendedor: [],
+    cotizaciones: [],
     config: { tasa: 13, moneda: '$', sugerenciaEmpaque:false, moduloCocina:false, cobroCocina:'despues', meseroPuedeCobrar:false }
   };
 }
@@ -1356,20 +1390,6 @@ function poblarSelectCategoria(selectId, valorActual){
   sel.innerHTML = `<option value="">Sin categoría</option>` +
     opciones.map(c=>`<option value="${c}" ${valorActual===c?'selected':''}>${c}</option>`).join('') +
     `<option value="otro" ${valorActual && !opciones.includes(valorActual) ? 'selected':''}>Otro...</option>`;
-  const avisoId = selectId+'-aviso-rubro';
-  let aviso = document.getElementById(avisoId);
-  if(!opciones.length){
-    if(!aviso){
-      aviso = document.createElement('p');
-      aviso.className = 'hint';
-      aviso.id = avisoId;
-      aviso.style.color = 'var(--rust)';
-      aviso.innerHTML = 'No hay categorías preestablecidas todavía — andá a <b>Configuración → Rubro de tu negocio</b> y guardalo para que aparezcan.';
-      sel.insertAdjacentElement('afterend', aviso);
-    }
-  } else if(aviso){
-    aviso.remove();
-  }
 }
 function fmtCantidad(cantidad, unidad){
   const u = ETIQUETA_UNIDAD[unidad] || 'u';
@@ -1438,6 +1458,7 @@ function abrirFormularioRegistro(){
     <div class="field-group">
       <label>¿A qué se dedica tu negocio?</label>
       <select id="reg-rubro" onchange="onRubroRegChange()">
+        <option value="" selected>Elegí a qué se dedica tu negocio</option>
         <option value="ropa">Ropa / Moda</option>
         <option value="restaurante">Restaurante / Comida</option>
         <option value="ferreteria">Ferretería</option>
@@ -1470,6 +1491,7 @@ async function confirmarRegistroCompleto(){
   err.textContent = '';
   if(!nombre || !tienda){ err.textContent = 'Metele al menos tu nombre y el nombre de tu tienda.'; return; }
   if(!email){ err.textContent = 'Metele un correo válido.'; return; }
+  if(!rubro){ err.textContent = 'Elegí a qué se dedica tu negocio.'; return; }
   if(!passwordValida(pass)){ err.textContent = 'La contraseña necesita mínimo 8 caracteres, una mayúscula y un número.'; return; }
   window._datosRegistroPendiente = { nombre, telefono, pais, rubro, tienda };
   try{
@@ -1651,6 +1673,7 @@ function pedirNombreTienda(callback){
     <div class="field-group">
       <label>¿A qué se dedica tu negocio?</label>
       <select id="ob-rubro" onchange="onRubroObChange()">
+        <option value="" selected>Elegí a qué se dedica tu negocio</option>
         <option value="ropa">Ropa / Moda</option>
         <option value="restaurante">Restaurante / Comida</option>
         <option value="ferreteria">Ferretería</option>
@@ -1677,6 +1700,7 @@ function confirmarPrimeraTienda(){
   const tienda = document.getElementById('ob-tienda').value.trim();
   const err = document.getElementById('ob-error');
   if(!nombre || !tienda){ err.textContent = 'Metele al menos tu nombre y el nombre de tu tienda.'; return; }
+  if(!rubro){ err.textContent = 'Elegí a qué se dedica tu negocio.'; return; }
   closeModal();
   if(window._callbackPrimeraTienda) window._callbackPrimeraTienda({ nombre, telefono, pais, rubro, tienda });
 }
@@ -2239,6 +2263,111 @@ function generarCodigo(producto, categoria){
   return codigo;
 }
 
+let carritoCotizacion = [];
+function autollenarCotizacion(){
+  const nombre = document.getElementById('cot-producto').value.trim();
+  const item = state.inventario.find(p=>p.producto.toLowerCase()===nombre.toLowerCase()) || state.combos.find(c=>c.nombre.toLowerCase()===nombre.toLowerCase());
+  if(item && item.precioVenta) document.getElementById('cot-precio').value = item.precioVenta;
+}
+function agregarItemCotizacion(){
+  const producto = document.getElementById('cot-producto').value.trim();
+  const cantidad = parseFloat(document.getElementById('cot-cantidad').value) || 1;
+  const precio = parseFloat(document.getElementById('cot-precio').value) || 0;
+  if(!producto || precio<=0){ mostrarAlerta('Metele producto y precio antes de agregar el ítem.'); return; }
+  carritoCotizacion.push({ producto, cantidad, precioUnit:precio, total: cantidad*precio });
+  document.getElementById('cot-producto').value = '';
+  document.getElementById('cot-cantidad').value = '';
+  document.getElementById('cot-precio').value = '';
+  renderCarritoCotizacion();
+}
+function quitarItemCotizacion(idx){
+  carritoCotizacion.splice(idx,1);
+  renderCarritoCotizacion();
+}
+function renderCarritoCotizacion(){
+  const el = document.getElementById('cot-carrito');
+  if(!el) return;
+  if(!carritoCotizacion.length){ el.innerHTML=''; return; }
+  const total = carritoCotizacion.reduce((s,it)=>s+it.total,0);
+  el.innerHTML = `<div class="card" style="background:var(--primary-soft);box-shadow:none;">` +
+    carritoCotizacion.map((it,i)=>`<div class="row" style="justify-content:space-between;flex-wrap:nowrap;margin-bottom:6px;"><span style="font-size:13px;">${it.cantidad}x ${it.producto}</span><span style="display:flex;align-items:center;gap:6px;"><span class="num" style="font-size:13px;">${fmt(it.total)}</span><button class="btn-icon danger" onclick="quitarItemCotizacion(${i})">${ICONO_X}</button></span></div>`).join('') +
+    `<div class="row" style="justify-content:space-between;font-weight:700;margin:0;"><span>Total</span><span>${fmt(total)}</span></div></div>`;
+}
+function guardarCotizacion(){
+  if(!carritoCotizacion.length){ mostrarAlerta('Agregá al menos un producto a la cotización.'); return; }
+  const cliente = document.getElementById('cot-cliente').value.trim();
+  if(!cliente){ mostrarAlerta('Metele el nombre del cliente.'); return; }
+  const telefono = document.getElementById('cot-telefono').value.trim();
+  const email = document.getElementById('cot-email').value.trim();
+  const validoHasta = document.getElementById('cot-valido-hasta').value;
+  const notas = document.getElementById('cot-notas').value.trim();
+  const total = carritoCotizacion.reduce((s,it)=>s+it.total,0);
+  const cot = { id:Date.now(), fecha:new Date().toISOString().slice(0,10), cliente, telefono, email, validoHasta, notas, items: carritoCotizacion, total };
+  state.cotizaciones.unshift(cot);
+  carritoCotizacion = [];
+  renderCarritoCotizacion();
+  ['cot-cliente','cot-telefono','cot-email','cot-valido-hasta','cot-notas'].forEach(id=>document.getElementById(id).value='');
+  guardar(); render();
+  verCotizacion(cot.id);
+}
+function textoCotizacion(cot){
+  const lineas = cot.items.map(it=>`• ${it.cantidad}x ${it.producto} — ${fmt(it.total)}`).join('\n');
+  return `Cotización para ${cot.cliente} — ${cot.fecha}\n\n${lineas}\n\nTotal: ${fmt(cot.total)}` +
+    (cot.validoHasta ? `\nVálida hasta: ${cot.validoHasta}` : '') +
+    (cot.notas ? `\n\nNotas: ${cot.notas}` : '') +
+    `\n\n${document.getElementById('badge-tienda')?document.getElementById('badge-tienda').textContent:''}`;
+}
+function verCotizacion(id){
+  const cot = state.cotizaciones.find(c=>c.id===id);
+  if(!cot) return;
+  const lineas = cot.items.map(it=>`<div class="tline"><span>${it.cantidad}x ${it.producto}</span><span>${fmt(it.total)}</span></div>`).join('');
+  openModal(`
+    <h3>Cotización — ${cot.cliente}</h3>
+    <p class="hint">${cot.fecha}${cot.validoHasta?' · Válida hasta '+cot.validoHasta:''}</p>
+    ${lineas}
+    <div class="tline" style="font-weight:700;border-top:1px solid var(--outline-variant);padding-top:8px;margin-top:6px;"><span>Total</span><span>${fmt(cot.total)}</span></div>
+    ${cot.notas?`<p class="hint" style="margin-top:8px;">${cot.notas}</p>`:''}
+    <div class="row" style="margin-top:14px;">
+      <button class="secondary" type="button" onclick="enviarCotizacionWhatsApp(${cot.id})">Enviar por WhatsApp</button>
+      <button class="secondary" type="button" onclick="enviarCotizacionEmail(${cot.id})">Enviar por correo</button>
+    </div>
+    <div class="row"><button class="secondary" onclick="closeModal()">Cerrar</button></div>
+  `);
+}
+function enviarCotizacionWhatsApp(id){
+  const cot = state.cotizaciones.find(c=>c.id===id);
+  if(!cot) return;
+  const numero = cot.telefono.replace(/[^0-9]/g,'');
+  if(!numero){ mostrarAlerta('Esta cotización no tiene un número de WhatsApp anotado.'); return; }
+  window.open(`https://wa.me/${numero}?text=${encodeURIComponent(textoCotizacion(cot))}`, '_blank');
+}
+function enviarCotizacionEmail(id){
+  const cot = state.cotizaciones.find(c=>c.id===id);
+  if(!cot) return;
+  if(!cot.email){ mostrarAlerta('Esta cotización no tiene un correo anotado.'); return; }
+  const asunto = encodeURIComponent(`Cotización — ${cot.cliente}`);
+  const cuerpo = encodeURIComponent(textoCotizacion(cot));
+  window.location.href = `mailto:${cot.email}?subject=${asunto}&body=${cuerpo}`;
+}
+function borrarCotizacion(id){
+  confirmarAccion('¿Eliminar esta cotización?', ()=>{
+    state.cotizaciones = state.cotizaciones.filter(c=>c.id!==id);
+    guardar(); render();
+  });
+}
+function renderCotizaciones(){
+  const el = document.getElementById('lista-cotizaciones');
+  if(!el) return;
+  el.innerHTML = state.cotizaciones.length ? state.cotizaciones.map(c=>
+    `<div class="row" style="justify-content:space-between;flex-wrap:nowrap;background:var(--surface-container);padding:10px 12px;border-radius:8px;margin-bottom:6px;">
+      <span style="font-size:13px;">${c.cliente} <span class="hint" style="margin:0;">${c.fecha} · ${fmt(c.total)}</span></span>
+      <div class="actions-icons">
+        <button class="btn-icon" title="Ver / enviar" onclick="verCotizacion(${c.id})">${ICONO_TICKET}</button>
+        <button class="btn-icon danger" title="Eliminar" onclick="borrarCotizacion(${c.id})">${ICONO_BASURA}</button>
+      </div>
+    </div>`
+  ).join('') : '<div class="empty">Todavía no armás ninguna cotización.</div>';
+}
 function autollenarVenta(){
   const codigo = document.getElementById('v-codigo').value.trim().toUpperCase();
   const item = state.inventario.find(p=>p.codigo===codigo);
@@ -4168,6 +4297,7 @@ function render(){
   renderCocina();
   renderMesas();
   renderTiposFiscales();
+  renderCotizaciones();
   renderPedidosListosParaCobrar();
   renderSugerenciaEmpaque();
   renderRestock();
@@ -4327,7 +4457,7 @@ document.getElementById('lista-combos').innerHTML = state.combos.length ? state.
       gruposVistos.add(p.grupoNombre);
       const cantidadEnGrupo = inventarioFiltrado.filter(x=>x.grupoNombre===p.grupoNombre).length;
       const colapsado = gruposColapsados.has(p.grupoNombre);
-      filaGrupo = `<tr style="background:var(--primary-soft);cursor:pointer;" onclick="toggleGrupoColapsado('${p.grupoNombre.replace(/'/g,"\\'")}')"><td colspan="4" style="font-weight:700;font-size:12px;">${colapsado?'▸':'▾'} ${p.grupoNombre} <span class="hint" style="margin:0;">(${cantidadEnGrupo} variantes)</span></td><td colspan="2" onclick="event.stopPropagation();"><div class="actions-icons"><button class="btn-icon" title="Editar grupo" onclick="editarGrupoVariantes('${p.grupoNombre.replace(/'/g,"\\'")}')">${ICONO_LAPIZ}</button><button class="btn-icon danger" title="Eliminar grupo" onclick="borrarGrupoVariantes('${p.grupoNombre.replace(/'/g,"\\'")}')">${ICONO_BASURA}</button></div></td></tr>`;
+      filaGrupo = `<tr style="background:var(--primary-soft);cursor:pointer;" onclick="toggleGrupoColapsado('${p.grupoNombre.replace(/'/g,"\\'")}')"><td colspan="5" style="font-weight:700;font-size:12px;">${colapsado?'▸':'▾'} ${p.grupoNombre} <span class="hint" style="margin:0;">(${cantidadEnGrupo} variantes)</span></td><td onclick="event.stopPropagation();"><div class="actions-icons"><button class="btn-icon" title="Editar grupo" onclick="editarGrupoVariantes('${p.grupoNombre.replace(/'/g,"\\'")}')">${ICONO_LAPIZ}</button><button class="btn-icon danger" title="Eliminar grupo" onclick="borrarGrupoVariantes('${p.grupoNombre.replace(/'/g,"\\'")}')">${ICONO_BASURA}</button></div></td></tr>`;
     }
     if(p.grupoNombre && gruposColapsados.has(p.grupoNombre)) return filaGrupo;
     return filaGrupo + `<tr><td><span class="code">${p.codigo}</span></td><td>${p.grupoNombre ? '↳ '+p.producto.replace(p.grupoNombre,'').trim() : p.producto}${p.categoria?` <span class="hint" style="margin:0;">· ${p.categoria}</span>`:''}${p.esInsumo?` <span class="tag edit">Insumo</span>`:''}</td><td class="num">${fmtCantidad(p.stock, p.unidad)}</td><td class="num">${p.precioVenta?fmt(p.precioVenta):'—'}</td><td>${p.stock<=p.reorden ? '<span class="tag low">Reordenar</span>' : '<span class="tag ok">Ok</span>'}</td><td><div class="actions-icons">${p.qr?`<button class="btn-icon" title="Ver QR" onclick="verQR('${p.codigo}')">${ICONO_QRCHICO}</button>`:''}<button class="btn-icon" title="Ajustar stock" onclick="abrirAjusteInventario(${p.id})">${ICONO_SLIDERS}</button><button class="btn-icon" title="Editar" onclick="editarProducto(${p.id})">${ICONO_LAPIZ}</button><button class="btn-icon danger" title="Eliminar" onclick="borrarProducto(${p.id})">${ICONO_BASURA}</button></div></td></tr>`;
