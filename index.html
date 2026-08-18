@@ -1356,6 +1356,20 @@ function poblarSelectCategoria(selectId, valorActual){
   sel.innerHTML = `<option value="">Sin categoría</option>` +
     opciones.map(c=>`<option value="${c}" ${valorActual===c?'selected':''}>${c}</option>`).join('') +
     `<option value="otro" ${valorActual && !opciones.includes(valorActual) ? 'selected':''}>Otro...</option>`;
+  const avisoId = selectId+'-aviso-rubro';
+  let aviso = document.getElementById(avisoId);
+  if(!opciones.length){
+    if(!aviso){
+      aviso = document.createElement('p');
+      aviso.className = 'hint';
+      aviso.id = avisoId;
+      aviso.style.color = 'var(--rust)';
+      aviso.innerHTML = 'No hay categorías preestablecidas todavía — andá a <b>Configuración → Rubro de tu negocio</b> y guardalo para que aparezcan.';
+      sel.insertAdjacentElement('afterend', aviso);
+    }
+  } else if(aviso){
+    aviso.remove();
+  }
 }
 function fmtCantidad(cantidad, unidad){
   const u = ETIQUETA_UNIDAD[unidad] || 'u';
@@ -4313,7 +4327,7 @@ document.getElementById('lista-combos').innerHTML = state.combos.length ? state.
       gruposVistos.add(p.grupoNombre);
       const cantidadEnGrupo = inventarioFiltrado.filter(x=>x.grupoNombre===p.grupoNombre).length;
       const colapsado = gruposColapsados.has(p.grupoNombre);
-      filaGrupo = `<tr style="background:var(--primary-soft);cursor:pointer;" onclick="toggleGrupoColapsado('${p.grupoNombre.replace(/'/g,"\\'")}')"><td colspan="4" style="font-weight:700;font-size:12px;">${colapsado?'▸':'▾'} ${p.grupoNombre} <span class="hint" style="margin:0;">(${cantidadEnGrupo} variantes)</span></td><td colspan="2" class="actions" onclick="event.stopPropagation();"><button class="mini" onclick="editarGrupoVariantes('${p.grupoNombre.replace(/'/g,"\\'")}')">Editar grupo</button><button class="danger" onclick="borrarGrupoVariantes('${p.grupoNombre.replace(/'/g,"\\'")}')">Eliminar grupo</button></td></tr>`;
+      filaGrupo = `<tr style="background:var(--primary-soft);cursor:pointer;" onclick="toggleGrupoColapsado('${p.grupoNombre.replace(/'/g,"\\'")}')"><td colspan="4" style="font-weight:700;font-size:12px;">${colapsado?'▸':'▾'} ${p.grupoNombre} <span class="hint" style="margin:0;">(${cantidadEnGrupo} variantes)</span></td><td colspan="2" onclick="event.stopPropagation();"><div class="actions-icons"><button class="btn-icon" title="Editar grupo" onclick="editarGrupoVariantes('${p.grupoNombre.replace(/'/g,"\\'")}')">${ICONO_LAPIZ}</button><button class="btn-icon danger" title="Eliminar grupo" onclick="borrarGrupoVariantes('${p.grupoNombre.replace(/'/g,"\\'")}')">${ICONO_BASURA}</button></div></td></tr>`;
     }
     if(p.grupoNombre && gruposColapsados.has(p.grupoNombre)) return filaGrupo;
     return filaGrupo + `<tr><td><span class="code">${p.codigo}</span></td><td>${p.grupoNombre ? '↳ '+p.producto.replace(p.grupoNombre,'').trim() : p.producto}${p.categoria?` <span class="hint" style="margin:0;">· ${p.categoria}</span>`:''}${p.esInsumo?` <span class="tag edit">Insumo</span>`:''}</td><td class="num">${fmtCantidad(p.stock, p.unidad)}</td><td class="num">${p.precioVenta?fmt(p.precioVenta):'—'}</td><td>${p.stock<=p.reorden ? '<span class="tag low">Reordenar</span>' : '<span class="tag ok">Ok</span>'}</td><td><div class="actions-icons">${p.qr?`<button class="btn-icon" title="Ver QR" onclick="verQR('${p.codigo}')">${ICONO_QRCHICO}</button>`:''}<button class="btn-icon" title="Ajustar stock" onclick="abrirAjusteInventario(${p.id})">${ICONO_SLIDERS}</button><button class="btn-icon" title="Editar" onclick="editarProducto(${p.id})">${ICONO_LAPIZ}</button><button class="btn-icon danger" title="Eliminar" onclick="borrarProducto(${p.id})">${ICONO_BASURA}</button></div></td></tr>`;
