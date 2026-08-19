@@ -2224,6 +2224,10 @@ function eliminarTiendaUI(tiendaId){
   }
   confirmarAccion('¿Eliminar esta tienda? Se borran sus ventas, inventario y todos sus datos — esto no se puede deshacer.', async ()=>{
     try{
+      const tiendaInfo = await window.fb.leerTienda(tiendaId);
+      if(tiendaInfo && tiendaInfo.cadenaId){
+        await limpiarTiendaDeCadena(tiendaInfo.cadenaId, tiendaId);
+      }
       await window.fb.eliminarTienda(tiendaId);
       currentTiendas = currentTiendas.filter(id => id !== tiendaId);
       await window.fb.guardarUsuario(currentUid, { tiendas: currentTiendas });
@@ -2232,6 +2236,20 @@ function eliminarTiendaUI(tiendaId){
       mostrarAlerta('No se pudo eliminar la tienda. Si esto sigue pasando, revisá que las reglas de Firestore permitan borrar en /tiendas/{tiendaId}.');
     }
   });
+}
+async function limpiarTiendaDeCadena(cadenaId, tiendaIdEliminada){
+  const cadena = await window.fb.leerCadena(cadenaId);
+  if(!cadena) return;
+  const restantes = (cadena.tiendaIds || []).filter(id => id !== tiendaIdEliminada);
+  if(restantes.length <= 1){
+    // Una cadena de una sola tienda ya no tiene sentido como cadena — se limpia por completo
+    for(const id of restantes){
+      await window.fb.actualizarTienda(id, { cadenaId: null });
+    }
+    await window.fb.actualizarCadena(cadenaId, { tiendaIds: [] });
+  } else {
+    await window.fb.actualizarCadena(cadenaId, { tiendaIds: restantes });
+  }
 }
 function editarNombreTiendaUI(tiendaId, nombreActual){
   openModal(`
