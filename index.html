@@ -25,7 +25,8 @@
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
-  const storage = getStorage(app);
+  let storage = null;
+  try{ storage = getStorage(app); }catch(e){ console.error('No se pudo inicializar Storage (¿todavía no está activado en Firebase?):', e); }
   const googleProvider = new GoogleAuthProvider();
 
   window.fb = {
@@ -94,11 +95,13 @@
       }, (error) => { console.error('Error escuchando pedidos:', error); });
     },
     subirImagenProducto: async (tiendaId, codigoProducto, archivo) => {
+      if(!storage) throw new Error('Storage no está disponible todavía.');
       const r = ref(storage, `tiendas/${tiendaId}/productos/${codigoProducto}.jpg`);
       await uploadBytes(r, archivo);
       return await getDownloadURL(r);
     },
     borrarImagenProducto: async (tiendaId, codigoProducto) => {
+      if(!storage) return;
       const r = ref(storage, `tiendas/${tiendaId}/productos/${codigoProducto}.jpg`);
       try{ await deleteObject(r); }catch(e){ /* si no existe, no pasa nada */ }
     },
