@@ -457,7 +457,7 @@
   
   .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; padding: 24px; }
   .modal-overlay.show { display: flex; animation: fadeIn 0.2s; }
-  .modal-box { background: var(--surface); border-radius: var(--radius-lg); padding: 24px; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto; box-shadow: var(--elev-2); }
+  .modal-box { background: var(--surface); border-radius: var(--radius-lg); padding: 24px; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto; overflow-x: hidden; box-shadow: var(--elev-2); }
   
   #scanner-video { width: 100%; border-radius: var(--radius-md); background: #000; display: block; margin-bottom: 16px; }
   .ticket { font-family: var(--font-mono); font-size: 0.9rem; line-height: 1.6; background: var(--surface-container); border: 1px dashed var(--outline-variant); border-radius: var(--radius-sm); padding: 20px; margin-bottom: 16px; }
@@ -1976,7 +1976,10 @@ function abrirDetalleItemEscaparate(tipo, codigo){
   const mostrarFijos = esCombo && item.mostrarDetalleTienda && fijosCombo.length;
   const filasGrupos = gruposCombo.map((g,i)=>{
     const variantes = (escaparateCatalogo.inventario||[]).filter(p=>p.grupoNombre===g.grupoNombre);
-    return `<div class="field-group"><label>${g.grupoNombre}</label><select id="esc-grupo-${i}">${variantes.map(v=>`<option value="${v.codigo}">${v.producto.replace(g.grupoNombre,'').trim()||v.producto}</option>`).join('')}</select></div>`;
+    return `<div class="field-group"><label>${g.grupoNombre}</label><select id="esc-grupo-${i}">${variantes.map(v=>{
+      const etiqueta = v.producto.replace(g.grupoNombre,'').trim().replace(/^\(|\)$/g,'').trim() || v.producto;
+      return `<option value="${v.codigo}">${etiqueta}</option>`;
+    }).join('')}</select></div>`;
   }).join('');
   const filasFijos = mostrarFijos ? fijosCombo.map((f,i)=>{
     const prod = (escaparateCatalogo.inventario||[]).find(p=>p.codigo===f.codigo);
@@ -2006,7 +2009,10 @@ function confirmarAgregarItemEscaparate(tipo, codigo){
     const sel = document.getElementById(`esc-grupo-${i}`);
     if(sel){
       const variante = (escaparateCatalogo.inventario||[]).find(p=>p.codigo===sel.value);
-      if(variante) detalleVariantes.push(variante.producto);
+      if(variante){
+        const etiqueta = variante.producto.replace(grupos[i].grupoNombre,'').trim().replace(/^\(|\)$/g,'').trim() || variante.producto;
+        detalleVariantes.push(etiqueta);
+      }
     }
   }
   let excluidos = [];
@@ -2063,7 +2069,7 @@ function abrirCarritoEscaparate(){
       </select>
     </div>
     <div class="field-group" id="esc-direccion-wrap" style="display:none;"><label>Dirección de envío</label><input type="text" id="esc-direccion" placeholder="Dirección completa"></div>
-    <div class="row"><button class="secondary" onclick="closeModal()">Seguir viendo</button><button onclick="enviarPedidoEscaparate()">Enviar pedido por WhatsApp</button></div>` : `<div class="row"><button class="secondary" onclick="closeModal()">Cerrar</button></div>`}
+    <div class="row" style="flex-direction:column;"><button onclick="enviarPedidoEscaparate()">Enviar pedido por WhatsApp</button><button class="secondary" onclick="closeModal()">Seguir viendo</button></div>` : `<div class="row"><button class="secondary" onclick="closeModal()">Cerrar</button></div>`}
   `);
 }
 function enviarPedidoEscaparate(){
@@ -3475,16 +3481,9 @@ function mostrarTicket(v){
   const lineaDesc = v.descuentoMonto ? `<div class="tline"><span>Descuento${v.vendedorAplicado?' (código vendedor)':''}</span><span>-${fmt(v.descuentoMonto)}</span></div>` : '';
   const lineasItems = v.items.map(it=>{
     const linea = `<div class="tline"><span>${it.cantidad} x ${it.producto}${it.promoAplicada?' '+ICONO_TAG:''}</span><span>${fmt(it.totalBruto)}</span></div>`;
-    let detalle = '';
-    if(it.esCombo && it.componentesResueltos && it.componentesResueltos.length){
-      detalle = it.componentesResueltos.map(comp=>{
-        const p = state.inventario.find(x=>x.codigo===comp.codigo);
-        return `<div class="tline" style="padding-left:14px;font-size:11px;color:var(--ink-faint);"><span>· ${comp.cantidad}x ${p?p.producto:comp.codigo}</span><span></span></div>`;
-      }).join('');
-    }
     const comentario = it.comentario ? `<div class="tline" style="padding-left:14px;font-size:11px;color:var(--ink-faint);"><span>· Nota: ${it.comentario}</span><span></span></div>` : '';
     const quitados = (it.ingredientesQuitados && it.ingredientesQuitados.length) ? `<div class="tline" style="padding-left:14px;font-size:11px;color:var(--ink-faint);"><span>· Sin: ${it.ingredientesQuitados.join(', ')}</span><span></span></div>` : '';
-    return linea + detalle + comentario + quitados;
+    return linea + comentario + quitados;
   }).join('');
   const nombrePago = {efectivo:'Efectivo',tarjeta:'Tarjeta',transferencia:'Transferencia',pagare:'Pagaré',fiado:'Fiado'}[v.metodoPago] || v.metodoPago;
   const html = `
