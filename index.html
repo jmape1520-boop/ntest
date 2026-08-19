@@ -303,13 +303,14 @@
   .actions-icons{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
   .mobile-card-list{ display:block; }
   .desktop-table-wrap{ display:none; }
-  .mini-card{ background:var(--surface-container); border-radius:var(--radius-md); padding:12px 14px; margin-bottom:8px; cursor:pointer; transition:background 0.15s; }
+  .mini-card{ background:var(--surface-container); border-radius:var(--radius-md); padding:12px 14px; margin-bottom:8px; cursor:pointer; transition:background 0.15s; overflow:hidden; }
   .mini-card:hover{ background:var(--surface-container-high); }
-  .mini-card .mc-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
-  .mini-card .mc-title{ margin:0; font-weight:700; font-size:0.95rem; }
-  .mini-card .mc-sub{ margin:2px 0 0; }
-  .mini-card .mc-right{ text-align:right; flex:0 0 auto; }
-  .mini-card .mc-price{ margin:0; font-weight:800; }
+  .mini-card .mc-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; min-width:0; }
+  .mini-card .mc-row > div:first-child{ min-width:0; flex:1 1 auto; }
+  .mini-card .mc-title{ margin:0; font-weight:700; font-size:0.95rem; overflow-wrap:break-word; word-break:break-word; }
+  .mini-card .mc-sub{ margin:2px 0 0; overflow-wrap:break-word; word-break:break-word; }
+  .mini-card .mc-right{ text-align:right; flex:0 0 auto; max-width:45%; }
+  .mini-card .mc-price{ margin:0; font-weight:800; overflow-wrap:break-word; }
   @media (min-width: 640px){
     .mobile-card-list{ display:none; }
     .desktop-table-wrap{ display:block; }
@@ -565,6 +566,10 @@
     </div>
     <div class="card" id="ventas-registrar-card">
       <h3>Registrar venta <button type="button" class="help-icon" onclick="mostrarAlerta('El precio unitario ya incluye el impuesto. El sistema calcula por separado cuánto es base y cuánto es impuesto.')">?</button></h3>
+      <div class="row" id="v-toggle-busqueda-wrap" style="display:none;">
+        <button class="btn-tool" type="button" onclick="toggleBusquedaManualVentas()" id="v-toggle-busqueda-btn">Buscar otro producto manualmente</button>
+      </div>
+      <div id="v-busqueda-manual-wrap">
       <div class="row">
         <input list="codigos-inv" type="text" id="v-codigo" placeholder="Código" oninput="autollenarVenta()">
         <datalist id="codigos-inv"></datalist>
@@ -581,6 +586,7 @@
       <p class="hint" id="v-promo-preview"></p>
       <div class="row">
         <button class="secondary" onclick="agregarItemCarrito()" type="button"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>Agregar ítem</button>
+      </div>
       </div>
       <div id="v-carrito"></div>
       <div id="v-empaque-wrap" style="display:none;"></div>
@@ -2738,13 +2744,34 @@ function agregarItemCarrito(){
   renderCarrito();
 }
 let categoriaMenuSeleccionada = '';
+function toggleBusquedaManualVentas(){
+  const wrap = document.getElementById('v-busqueda-manual-wrap');
+  const btn = document.getElementById('v-toggle-busqueda-btn');
+  const abierta = wrap.style.display !== 'none';
+  wrap.style.display = abierta ? 'none' : 'block';
+  btn.textContent = abierta ? 'Buscar otro producto manualmente' : 'Ocultar búsqueda manual';
+}
 function renderMenuRapido(){
   const wrap = document.getElementById('card-menu-rapido');
   if(!wrap) return;
-  if(!state.config.moduloCocina){ wrap.style.display = 'none'; return; }
+  const toggleWrap = document.getElementById('v-toggle-busqueda-wrap');
+  const busquedaWrap = document.getElementById('v-busqueda-manual-wrap');
+  if(!state.config.moduloCocina){
+    wrap.style.display = 'none';
+    if(toggleWrap) toggleWrap.style.display = 'none';
+    if(busquedaWrap) busquedaWrap.style.display = 'block';
+    return;
+  }
   const combosConCategoria = state.combos.filter(c=>c.activo && c.categoriaMenu);
-  if(!combosConCategoria.length){ wrap.style.display = 'none'; return; }
+  if(!combosConCategoria.length){
+    wrap.style.display = 'none';
+    if(toggleWrap) toggleWrap.style.display = 'none';
+    if(busquedaWrap) busquedaWrap.style.display = 'block';
+    return;
+  }
   wrap.style.display = '';
+  if(toggleWrap) toggleWrap.style.display = 'flex';
+  if(busquedaWrap && busquedaWrap.style.display !== 'block') busquedaWrap.style.display = 'none';
   const categorias = [...new Set(combosConCategoria.map(c=>c.categoriaMenu))];
   const chips = categorias.map(cat=>`<button class="${categoriaMenuSeleccionada===cat?'mini':'btn-tool'}" style="min-height:34px;padding:6px 14px;" onclick="seleccionarCategoriaMenu('${cat.replace(/'/g,"\\'")}')" type="button">${cat}</button>`).join(' ');
   const mostrar = categoriaMenuSeleccionada ? combosConCategoria.filter(c=>c.categoriaMenu===categoriaMenuSeleccionada) : combosConCategoria;
@@ -2782,23 +2809,27 @@ function abrirPersonalizarCombo(combo){
   }).join('');
   openModal(`
     <h3>${combo.nombre}</h3>
+    <div class="field-group"><label>Cantidad</label><input type="number" id="pc-cantidad" value="${cantidad}" min="1" step="1"></div>
     ${fijos.length ? `<p class="hint">Desmarcá lo que el cliente no quiera:</p>${filasFijos}` : ''}
     ${filasGrupos}
     <div class="field-group"><label>Comentario (opcional)</label><input type="text" id="pc-comentario" placeholder="Ej. bien cocida, sin cebolla extra"></div>
     <p class="hint" id="pc-error" style="color:var(--rust);"></p>
-    <div class="row"><button class="secondary" onclick="closeModal()">Cancelar</button><button onclick="confirmarPersonalizarCombo('${combo.codigo}', ${cantidad}, ${precio})">Agregar al carrito</button></div>
+    <div class="row"><button class="secondary" onclick="closeModal()">Cancelar</button><button onclick="confirmarPersonalizarCombo('${combo.codigo}', ${precio})">Agregar al carrito</button></div>
   `);
   window._comboFijosTemp = fijos;
   window._comboGruposTemp = grupos;
 }
-function confirmarPersonalizarCombo(codigoCombo, cantidad, precio){
+function confirmarPersonalizarCombo(codigoCombo, precio){
   const combo = state.combos.find(c=>c.codigo===codigoCombo);
+  const cantidad = parseFloat(document.getElementById('pc-cantidad').value) || 1;
   const fijos = window._comboFijosTemp || [];
   const grupos = window._comboGruposTemp || [];
   const err = document.getElementById('pc-error');
   const componentesResueltos = [];
+  const ingredientesQuitados = [];
   document.querySelectorAll('.pc-fijo-check').forEach((chk,i)=>{
-    if(chk.checked) componentesResueltos.push({codigo: fijos[i].codigo, cantidad: fijos[i].cantidad});
+    if(chk.checked){ componentesResueltos.push({codigo: fijos[i].codigo, cantidad: fijos[i].cantidad}); }
+    else{ const p = state.inventario.find(x=>x.codigo===fijos[i].codigo); ingredientesQuitados.push(p?p.producto:fijos[i].codigo); }
   });
   for(let i=0;i<grupos.length;i++){
     const sel = document.getElementById(`pc-grupo-${i}`);
@@ -2816,7 +2847,7 @@ function confirmarPersonalizarCombo(codigoCombo, cantidad, precio){
   }
   const comentario = document.getElementById('pc-comentario').value.trim();
   const totalBruto = cantidad * precio;
-  carritoActual.push({codigo:combo.codigo, producto:combo.nombre, cantidad, precioUnit:precio, totalBruto, promoAplicada:null, descuentoMonto:0, total:totalBruto, esCombo:true, componentesResueltos, comentario});
+  carritoActual.push({codigo:combo.codigo, producto:combo.nombre, cantidad, precioUnit:precio, totalBruto, promoAplicada:null, descuentoMonto:0, total:totalBruto, esCombo:true, componentesResueltos, comentario, ingredientesQuitados});
   limpiarCamposItem();
   renderCarrito();
   closeModal();
@@ -2930,7 +2961,8 @@ function renderCocina(){
   el.innerHTML = activos.length ? activos.map(p=>{
     const items = p.items.map(it=>{
       const comentario = it.comentario ? ` <span class="hint" style="margin:0;">(${it.comentario})</span>` : '';
-      return `<div class="hint" style="margin:2px 0;">${it.cantidad}x ${it.producto}${comentario}</div>`;
+      const quitados = (it.ingredientesQuitados && it.ingredientesQuitados.length) ? ` <span class="hint" style="margin:0;color:var(--rust);">— sin: ${it.ingredientesQuitados.join(', ')}</span>` : '';
+      return `<div class="hint" style="margin:2px 0;">${it.cantidad}x ${it.producto}${comentario}${quitados}</div>`;
     }).join('');
     const etiquetaEstado = {pendiente:'Pendiente', preparando:'Preparando', listo:'Listo', entregado:'Entregado'}[p.estado];
     let botones = '';
@@ -3175,7 +3207,8 @@ function mostrarTicket(v){
       }).join('');
     }
     const comentario = it.comentario ? `<div class="tline" style="padding-left:14px;font-size:11px;color:var(--ink-faint);"><span>· Nota: ${it.comentario}</span><span></span></div>` : '';
-    return linea + detalle + comentario;
+    const quitados = (it.ingredientesQuitados && it.ingredientesQuitados.length) ? `<div class="tline" style="padding-left:14px;font-size:11px;color:var(--ink-faint);"><span>· Sin: ${it.ingredientesQuitados.join(', ')}</span><span></span></div>` : '';
+    return linea + detalle + comentario + quitados;
   }).join('');
   const nombrePago = {efectivo:'Efectivo',tarjeta:'Tarjeta',transferencia:'Transferencia',pagare:'Pagaré',fiado:'Fiado'}[v.metodoPago] || v.metodoPago;
   const html = `
