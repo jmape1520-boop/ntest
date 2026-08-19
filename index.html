@@ -344,6 +344,8 @@
   .esc-card-precio{ font-weight:900; font-size:1.05rem; color:var(--primary); }
   .esc-card-footer button{ padding:8px 14px; min-height:auto; font-size:13px; border-radius:var(--radius-full); }
   #esc-carrito-flotante button{ box-shadow:var(--elev-2); font-weight:800; padding:14px 28px; border-radius:var(--radius-full); }
+  .esc-red-btn{ width:38px; height:38px; border-radius:50%; background:var(--surface); color:var(--primary); display:flex; align-items:center; justify-content:center; box-shadow:var(--elev-1); }
+  .esc-red-btn:hover{ background:var(--primary-container); }
   .mini-card:hover{ background:var(--surface-container-high); }
   .mini-card .mc-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; min-width:0; }
   .mini-card .mc-row > div:first-child{ min-width:0; flex:1 1 auto; }
@@ -1075,6 +1077,10 @@
         <p class="hint">Un escaparate público con tus productos, sin que el cliente necesite cuenta. Arma su pedido y te lo manda por WhatsApp — vos lo cargás a Ventas como cualquier otra.</p>
         <div class="row"><label class="check-line"><input type="checkbox" id="c-tienda-online-activa" onchange="guardarConfig()"> Activar mi Tienda Online</label></div>
         <div class="field-group"><label>WhatsApp para recibir pedidos (con código de país)</label><input type="text" id="c-whatsapp-tienda" placeholder="Ej. 50370001234" onchange="guardarConfig()"></div>
+        <p class="hint">Redes sociales (opcional) — solo aparecen como botones en tu Tienda Online si les ponés algo.</p>
+        <div class="field-group"><label>Facebook</label><input type="text" id="c-red-facebook" placeholder="Link a tu página de Facebook" onchange="guardarConfig()"></div>
+        <div class="field-group"><label>Instagram</label><input type="text" id="c-red-instagram" placeholder="Usuario o link de Instagram" onchange="guardarConfig()"></div>
+        <div class="field-group"><label>TikTok</label><input type="text" id="c-red-tiktok" placeholder="Usuario o link de TikTok" onchange="guardarConfig()"></div>
         <div id="tienda-online-link-wrap" style="display:none;">
           <p class="hint">Tu link:</p>
           <div class="row"><input type="text" id="tienda-online-link" readonly style="font-size:12px;"><button class="mini" type="button" onclick="copiarLinkTiendaOnline()">Copiar</button></div>
@@ -1445,6 +1451,9 @@ async function cargarDatosTienda(){
   if(document.getElementById('c-formato-etiqueta')) document.getElementById('c-formato-etiqueta').value = state.config.formatoEtiquetaQR || 'grande';
   if(document.getElementById('c-tienda-online-activa')) document.getElementById('c-tienda-online-activa').checked = !!state.config.tiendaOnlineActiva;
   if(document.getElementById('c-whatsapp-tienda')) document.getElementById('c-whatsapp-tienda').value = state.config.whatsappTienda || '';
+  if(document.getElementById('c-red-facebook')) document.getElementById('c-red-facebook').value = state.config.redFacebook || '';
+  if(document.getElementById('c-red-instagram')) document.getElementById('c-red-instagram').value = state.config.redInstagram || '';
+  if(document.getElementById('c-red-tiktok')) document.getElementById('c-red-tiktok').value = state.config.redTiktok || '';
   actualizarLinkTiendaOnline();
   if(document.getElementById('c-rubro') && state.config.rubro){
     const opciones = ['ropa','restaurante','ferreteria','farmacia','abarrotes','papeleria','belleza','servicios'];
@@ -1475,7 +1484,10 @@ async function sincronizarCatalogoTienda(){
     moneda: state.config.moneda,
     sugerenciaEmpaque: state.config.sugerenciaEmpaque,
     tiendaOnlineActiva: !!state.config.tiendaOnlineActiva,
-    whatsappTienda: state.config.whatsappTienda || ''
+    whatsappTienda: state.config.whatsappTienda || '',
+    redFacebook: state.config.redFacebook || '',
+    redInstagram: state.config.redInstagram || '',
+    redTiktok: state.config.redTiktok || ''
   };
   try{ await window.fb.guardarCatalogoTienda(currentTiendaId, catalogo); }catch(e){ console.error(e); }
 }
@@ -1937,6 +1949,7 @@ async function iniciarModoEscaparate(tiendaId){
       document.getElementById('esc-estado').textContent = 'Esta tienda no tiene su escaparate activado por el momento.';
       return;
     }
+    renderRedesEscaparate();
     renderProductosEscaparate();
   }catch(e){
     document.getElementById('esc-estado').textContent = 'No se pudo cargar esta tienda. Revisá el link e intentá de nuevo.';
@@ -1946,6 +1959,24 @@ function itemsVisiblesEscaparate(){
   const productos = (escaparateCatalogo.inventario||[]).filter(p=>p.mostrarEnTienda).map(p=>({...p, tipo:'producto', nombre:p.producto}));
   const combos = (escaparateCatalogo.combos||[]).filter(c=>c.activo && c.mostrarEnTienda).map(c=>({...c, tipo:'combo'}));
   return [...productos, ...combos];
+}
+function renderRedesEscaparate(){
+  const el = document.getElementById('esc-redes');
+  if(!el) return;
+  const redes = [];
+  if(escaparateCatalogo.whatsappTienda){
+    const numero = escaparateCatalogo.whatsappTienda.replace(/[^0-9]/g,'');
+    if(numero) redes.push({ url:`https://wa.me/${numero}`, icono:'<path d="M17.6 6.3A9 9 0 0 0 3.3 17.6L2 22l4.5-1.2A9 9 0 1 0 17.6 6.3Z"></path><path d="M8.5 8.5c.3-.7 1-1 1.5-1 .3 0 .6.2.8.6l.6 1.4c.2.4.1.8-.2 1.1l-.5.5c-.2.2-.2.5 0 .8.5.9 1.5 1.9 2.4 2.4.3.2.6.2.8 0l.5-.5c.3-.3.7-.4 1.1-.2l1.4.6c.4.2.6.5.6.8 0 .5-.3 1.2-1 1.5-.6.3-1.3.4-2.3 0-1.9-.7-3.9-2.7-4.6-4.6-.4-1-.3-1.7 0-2.3Z"></path>' });
+  }
+  if(escaparateCatalogo.redFacebook) redes.push({ url: normalizarUrlRed(escaparateCatalogo.redFacebook, 'facebook.com'), icono:'<path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3Z"></path>' });
+  if(escaparateCatalogo.redInstagram) redes.push({ url: normalizarUrlRed(escaparateCatalogo.redInstagram, 'instagram.com'), icono:'<rect x="2" y="2" width="20" height="20" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><circle cx="17.5" cy="6.5" r="1"></circle>' });
+  if(escaparateCatalogo.redTiktok) redes.push({ url: normalizarUrlRed(escaparateCatalogo.redTiktok, 'tiktok.com/@'), icono:'<path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"></path>' });
+  el.innerHTML = redes.map(r=>`<a href="${r.url}" target="_blank" rel="noopener" class="esc-red-btn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${r.icono}</svg></a>`).join('');
+}
+function normalizarUrlRed(valor, dominio){
+  if(/^https?:\/\//i.test(valor)) return valor;
+  const usuario = valor.replace(/^@/, '');
+  return `https://${dominio}${dominio.endsWith('@')?'':'/'}${usuario}`;
 }
 function renderProductosEscaparate(){
   const items = itemsVisiblesEscaparate();
@@ -2510,6 +2541,9 @@ function guardarConfig(){
   state.config.formatoEtiquetaQR = document.getElementById('c-formato-etiqueta').value;
   state.config.tiendaOnlineActiva = document.getElementById('c-tienda-online-activa').checked;
   state.config.whatsappTienda = document.getElementById('c-whatsapp-tienda').value.trim();
+  state.config.redFacebook = document.getElementById('c-red-facebook').value.trim();
+  state.config.redInstagram = document.getElementById('c-red-instagram').value.trim();
+  state.config.redTiktok = document.getElementById('c-red-tiktok').value.trim();
   guardar(); render(); aplicarVisibilidadCocina(); actualizarLinkTiendaOnline();
 }
 function actualizarLinkTiendaOnline(){
@@ -5208,6 +5242,7 @@ function limpiarFiltroInventario(){
   <div style="background:linear-gradient(135deg, var(--primary-container), var(--surface-container)); padding:36px 20px 28px; text-align:center;">
     <h1 id="esc-nombre-tienda" style="margin:0;font-size:1.9rem;"></h1>
     <p class="hint" id="esc-estado" style="margin-top:6px;"></p>
+    <div id="esc-redes" style="display:flex;justify-content:center;gap:10px;margin-top:14px;"></div>
   </div>
   <div class="wrap">
     <div id="esc-productos" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,200px));justify-content:center;gap:16px;margin-top:20px;"></div>
