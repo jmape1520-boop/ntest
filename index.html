@@ -521,6 +521,7 @@
           <div class="tab" data-tab="promos"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83 3.83 11l9.58 9.59a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.83Z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="tab-label">Promociones</span></div>
           <div class="tab" data-tab="contabilidad"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg><span class="tab-label">Contabilidad</span></div>
           <div class="tab" data-tab="cotizaciones"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="13" y2="17"></line></svg><span class="tab-label">Cotizaciones</span></div>
+          <div class="tab" data-tab="tienda-online" id="tab-tienda-online" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"></path><path d="M3 9h18v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z"></path><path d="M9 13h6"></path></svg><span class="tab-label">Tienda</span></div>
           <div class="tab" data-tab="config"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"></path></svg><span class="tab-label">Configuración</span></div>
         </div>
         <div class="menu-perfil-footer">
@@ -798,11 +799,6 @@
         <button class="scan" onclick="abrirScanner('autollenarCodigoBarraProducto')" type="button"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px;"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>Escanear</button>
       </div>
       <p class="hint" id="i-codigo-barra-estado">Si escaneás el código de barras del producto, se usa como su identificador — así no hace falta imprimir ni pegar nada nuevo. Para marcas conocidas, también intentamos traerte el nombre solo.</p>
-      <div class="field-group">
-        <label>Foto del producto (opcional — para tu Tienda Online)</label>
-        <input type="file" id="i-imagen" accept="image/*" onchange="previsualizarImagenProducto('i-imagen','i-imagen-preview')">
-        <div id="i-imagen-preview" style="margin-top:8px;"></div>
-      </div>
       <div class="row">
         <input type="number" id="i-stock" placeholder="Stock inicial" min="0">
         <input type="number" id="i-reorden" placeholder="Punto de reorden (ej. 3)" min="0">
@@ -993,6 +989,14 @@
       <button class="mini" onclick="refrescarCocina()">Actualizar</button>
     </div>
     <div id="lista-cocina"></div>
+  </div>
+
+  <div class="panel" id="panel-tienda-online">
+    <h2 style="margin:0 0 14px;">Tienda</h2>
+    <div class="card">
+      <p class="hint">Elegí qué mostrar en tu escaparate público y subile una foto a cada uno. Los que no marqués como "Mostrar" no aparecen ahí, aunque sigan en tu inventario normal.</p>
+      <div id="lista-tienda-online"></div>
+    </div>
   </div>
 
   <div class="panel" id="panel-cotizaciones">
@@ -1315,7 +1319,8 @@ function normalizarEstado(){
   if(state.categoriasMenu===undefined){
     state.categoriasMenu = ['Entradas', 'Platos fuertes', 'Bebidas', 'Postres'];
   }
-  state.combos.forEach(c=>{ if(c.categoriaMenu===undefined) c.categoriaMenu = ''; });
+  state.combos.forEach(c=>{ if(c.categoriaMenu===undefined) c.categoriaMenu = ''; if(c.mostrarEnTienda===undefined) c.mostrarEnTienda=false; if(c.imagenUrl===undefined) c.imagenUrl=null; });
+  state.inventario.forEach(p=>{ if(p.mostrarEnTienda===undefined) p.mostrarEnTienda=false; if(p.imagenUrl===undefined) p.imagenUrl=null; });
   if(state.tiposFiscales===undefined){
     state.tiposFiscales = [
       { id:1, nombre:'Gravado (IVA 13%)', categoria:'iva', tasa:13 },
@@ -2320,6 +2325,8 @@ function guardarConfig(){
 function actualizarLinkTiendaOnline(){
   const wrap = document.getElementById('tienda-online-link-wrap');
   const input = document.getElementById('tienda-online-link');
+  const tab = document.getElementById('tab-tienda-online');
+  if(tab) tab.style.display = state.config.tiendaOnlineActiva ? 'flex' : 'none';
   if(!wrap || !input) return;
   if(state.config.tiendaOnlineActiva && currentTiendaId){
     const link = `${location.origin}${location.pathname}?tienda=${currentTiendaId}`;
@@ -3762,6 +3769,55 @@ async function agregarProducto(){
   }
   await finalizarAgregarProducto(datosProducto, codigoBarra || generarCodigo(producto, categoria));
 }
+function renderTiendaOnline(){
+  const el = document.getElementById('lista-tienda-online');
+  if(!el) return;
+  const items = [
+    ...state.inventario.filter(p=>!p.grupoNombre || true).map(p=>({tipo:'producto', ref:p})),
+    ...state.combos.filter(c=>c.activo).map(c=>({tipo:'combo', ref:c}))
+  ];
+  if(!items.length){ el.innerHTML = '<p class="empty">Todavía no tenés productos ni combos.</p>'; return; }
+  el.innerHTML = items.map(({tipo, ref})=>{
+    const nombre = tipo==='producto' ? ref.producto : ref.nombre;
+    const inputId = `tienda-img-${tipo}-${ref.id}`;
+    return `<div class="mini-card" style="cursor:default;">
+      <div class="mc-row" style="align-items:center;">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+          ${ref.imagenUrl ? `<img src="${ref.imagenUrl}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;flex:0 0 auto;">` : `<div style="width:44px;height:44px;border-radius:8px;background:var(--surface-container-high);flex:0 0 auto;display:flex;align-items:center;justify-content:center;">${ICONO_CAJA}</div>`}
+          <div style="min-width:0;">
+            <p class="mc-title">${nombre}</p>
+            <p class="hint mc-sub">${fmt(ref.precioVenta)}</p>
+          </div>
+        </div>
+        <div class="mc-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+          <label class="check-line" style="font-size:12px;"><input type="checkbox" ${ref.mostrarEnTienda?'checked':''} onchange="toggleMostrarEnTienda('${tipo}',${ref.id}, this.checked)"> Mostrar</label>
+          <input type="file" id="${inputId}" accept="image/*" style="display:none;" onchange="subirFotoTienda('${tipo}',${ref.id}, this)">
+          <button class="btn-icon" title="${ref.imagenUrl?'Cambiar foto':'Agregar foto'}" onclick="document.getElementById('${inputId}').click()">${ICONO_LAPIZ}</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function toggleMostrarEnTienda(tipo, id, valor){
+  const lista = tipo==='producto' ? state.inventario : state.combos;
+  const item = lista.find(x=>x.id===id);
+  if(!item) return;
+  item.mostrarEnTienda = valor;
+  guardar();
+}
+async function subirFotoTienda(tipo, id, inputEl){
+  const archivo = inputEl.files[0];
+  if(!archivo) return;
+  const lista = tipo==='producto' ? state.inventario : state.combos;
+  const item = lista.find(x=>x.id===id);
+  if(!item) return;
+  try{
+    item.imagenUrl = await window.fb.subirImagenProducto(currentTiendaId, item.codigo, archivo);
+    guardar(); render();
+  }catch(e){
+    mostrarAlerta('No se pudo subir la foto. Revisá tu conexión, o si Storage está bien configurado, e intentá de nuevo.');
+  }
+}
 function previsualizarImagenProducto(inputId, previewId){
   const input = document.getElementById(inputId);
   const preview = document.getElementById(previewId);
@@ -3833,10 +3889,9 @@ async function finalizarAgregarProducto(datosProducto, codigo){
     unidad:datosProducto.unidad||'unidad', tamano:datosProducto.tamano||'chico',
     esInsumo:datosProducto.esInsumo||false, modoConsumo:datosProducto.modoConsumo||'capacidad',
     capacidad:datosProducto.capacidad||1, multiplicador:datosProducto.multiplicador||1,
-    venderComoExtra:datosProducto.venderComoExtra||false, imagenUrl:null
+    venderComoExtra:datosProducto.venderComoExtra||false, imagenUrl:null, mostrarEnTienda:false
   };
   state.inventario.unshift(nuevo);
-  const archivoImagen = document.getElementById('i-imagen').files[0];
   document.getElementById('i-producto').value=''; document.getElementById('i-categoria').value=''; document.getElementById('i-stock').value='';
   document.getElementById('i-reorden').value=''; document.getElementById('i-precio').value=''; document.getElementById('i-codigo-barra').value='';
   document.getElementById('i-categoria-otro').value=''; document.getElementById('i-categoria-otro-wrap').style.display='none';
@@ -3848,16 +3903,8 @@ async function finalizarAgregarProducto(datosProducto, codigo){
   document.getElementById('i-capacidad').value = '';
   document.getElementById('i-multiplicador').value = '';
   document.getElementById('i-vender-extra').checked = false;
-  document.getElementById('i-imagen').value = '';
-  document.getElementById('i-imagen-preview').innerHTML = '';
   onEsInsumoChange(); onModoConsumoChange();
   guardar(); render();
-  if(archivoImagen){
-    try{
-      nuevo.imagenUrl = await window.fb.subirImagenProducto(currentTiendaId, codigo, archivoImagen);
-      guardar(); render();
-    }catch(e){ mostrarAlerta('El producto se guardó, pero la foto no se pudo subir. Probá editarlo para intentar de nuevo.'); }
-  }
   if(nuevo.stock > 0) abrirPreguntaCompraInicial(nuevo);
 }
 function abrirPreguntaCompraInicial(producto){
@@ -3951,12 +3998,6 @@ function editarProducto(id){
       <div class="row"><label class="check-line"><input type="checkbox" id="ep-vender-extra" ${p.venderComoExtra?'checked':''}> Permitir venderlo como extra (aparece en Ventas)</label></div>
     </div>
     <div class="row"><label class="check-line"><input type="checkbox" id="ep-qr" ${p.qr?'checked':''}> Generar código QR${p.qr?' (ya lo tiene — desmarcá para quitarlo)':''}</label></div>
-    <div class="field-group">
-      <label>Foto del producto (opcional — para tu Tienda Online)</label>
-      <input type="file" id="ep-imagen" accept="image/*" onchange="previsualizarImagenProducto('ep-imagen','ep-imagen-preview')">
-      <div id="ep-imagen-preview" style="margin-top:8px;">${p.imagenUrl?`<img src="${p.imagenUrl}" style="max-width:120px;max-height:120px;border-radius:8px;object-fit:cover;">`:''}</div>
-      ${p.imagenUrl?`<button class="mini" type="button" onclick="quitarImagenProducto(${id})">Quitar foto</button>`:''}
-    </div>
     <div class="row">
       <button class="secondary" onclick="closeModal()">Cancelar</button>
       <button onclick="guardarEdicionProducto(${id})">Guardar cambios</button>
@@ -4005,15 +4046,8 @@ async function guardarEdicionProducto(id){
   p.multiplicador = parseFloat(document.getElementById('ep-multiplicador').value) || 1;
   p.venderComoExtra = document.getElementById('ep-vender-extra').checked;
   p.qr = document.getElementById('ep-qr').checked;
-  const archivoImagen = document.getElementById('ep-imagen').files[0];
   closeModal();
   guardar(); render();
-  if(archivoImagen){
-    try{
-      p.imagenUrl = await window.fb.subirImagenProducto(currentTiendaId, p.codigo, archivoImagen);
-      guardar(); render();
-    }catch(e){ mostrarAlerta('No se pudo subir la foto. Probá de nuevo.'); }
-  }
 }
 function quitarImagenProducto(id){
   const p = state.inventario.find(x=>x.id===id);
@@ -4682,6 +4716,7 @@ function render(){
   renderMenuRapido();
   renderTiposFiscales();
   renderCotizaciones();
+  renderTiendaOnline();
   renderPedidosListosParaCobrar();
   renderSugerenciaEmpaque();
   renderRestock();
