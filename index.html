@@ -1671,7 +1671,7 @@ function abrirCambiarPassword(){
     </div>
     <div class="field-group">
       <label>Repetí la contraseña nueva</label>
-      <input type="password" id="cp-repetir" placeholder="Repetí la contraseña nueva">
+      <div class="pass-wrap"><input type="password" id="cp-repetir" placeholder="Repetí la contraseña nueva"><button type="button" class="pass-toggle" onclick="togglePassView('cp-repetir', this)">${ICONO_OJO}</button></div>
     </div>
     <p class="hint" id="cp-error" style="color:var(--rust);"></p>
     <div class="row">
@@ -1958,7 +1958,6 @@ function renderProductosEscaparate(){
       ${it.imagenUrl ? `<img src="${it.imagenUrl}" class="esc-card-img">` : `<div class="esc-card-img esc-card-img-vacia">${ICONO_CAJA}</div>`}
       <div class="esc-card-body">
         <p class="esc-card-nombre">${it.nombre}</p>
-        ${it.descripcion ? `<p class="esc-card-desc">${it.descripcion}</p>` : ''}
         <div class="esc-card-footer">
           <span class="esc-card-precio">${moneda}${Number(it.precioVenta||0).toFixed(2)}</span>
           <button type="button" onclick="abrirDetalleItemEscaparate('${it.tipo}','${it.codigo}')">+ Agregar</button>
@@ -3129,7 +3128,7 @@ function confirmarPersonalizarCombo(codigoCombo, precio){
   }
   const comentario = document.getElementById('pc-comentario').value.trim();
   const totalBruto = cantidad * precio;
-  carritoActual.push({codigo:combo.codigo, producto:combo.nombre, cantidad, precioUnit:precio, totalBruto, promoAplicada:null, descuentoMonto:0, total:totalBruto, esCombo:true, componentesResueltos, comentario, ingredientesQuitados});
+  carritoActual.push({codigo:combo.codigo, producto:combo.nombre, cantidad, precioUnit:precio, totalBruto, promoAplicada:null, descuentoMonto:0, total:totalBruto, esCombo:true, componentesResueltos, comentario, ingredientesQuitados, mostrarDetalleTienda:!!combo.mostrarDetalleTienda});
   limpiarCamposItem();
   renderCarrito();
   closeModal();
@@ -3481,9 +3480,16 @@ function mostrarTicket(v){
   const lineaDesc = v.descuentoMonto ? `<div class="tline"><span>Descuento${v.vendedorAplicado?' (código vendedor)':''}</span><span>-${fmt(v.descuentoMonto)}</span></div>` : '';
   const lineasItems = v.items.map(it=>{
     const linea = `<div class="tline"><span>${it.cantidad} x ${it.producto}${it.promoAplicada?' '+ICONO_TAG:''}</span><span>${fmt(it.totalBruto)}</span></div>`;
+    let detalle = '';
+    if(it.esCombo && it.mostrarDetalleTienda && it.componentesResueltos && it.componentesResueltos.length){
+      detalle = it.componentesResueltos.map(comp=>{
+        const p = state.inventario.find(x=>x.codigo===comp.codigo);
+        return `<div class="tline" style="padding-left:14px;font-size:11px;color:var(--ink-faint);"><span>· ${p?p.producto:comp.codigo}</span><span></span></div>`;
+      }).join('');
+    }
     const comentario = it.comentario ? `<div class="tline" style="padding-left:14px;font-size:11px;color:var(--ink-faint);"><span>· Nota: ${it.comentario}</span><span></span></div>` : '';
     const quitados = (it.ingredientesQuitados && it.ingredientesQuitados.length) ? `<div class="tline" style="padding-left:14px;font-size:11px;color:var(--ink-faint);"><span>· Sin: ${it.ingredientesQuitados.join(', ')}</span><span></span></div>` : '';
-    return linea + comentario + quitados;
+    return linea + detalle + comentario + quitados;
   }).join('');
   const nombrePago = {efectivo:'Efectivo',tarjeta:'Tarjeta',transferencia:'Transferencia',pagare:'Pagaré',fiado:'Fiado'}[v.metodoPago] || v.metodoPago;
   const html = `
@@ -4473,7 +4479,7 @@ function abrirCrearCombo(idExistente){
       <select id="combo-categoria-menu"><option value="">Sin categoría</option></select>
     </div>
     <div class="row"><label class="check-line"><input type="checkbox" id="co-qr" ${existente&&existente.qr?'checked':''}> Generar código QR para el combo</label></div>
-    <div class="row"><label class="check-line"><input type="checkbox" id="co-mostrar-detalle" ${existente&&existente.mostrarDetalleTienda?'checked':''}> Mostrar el detalle de ingredientes fijos en la Tienda Online</label></div>
+    <div class="row"><label class="check-line"><input type="checkbox" id="co-mostrar-detalle" ${existente&&existente.mostrarDetalleTienda?'checked':''}> Mostrar el detalle de este combo (en el ticket y en la Tienda Online)</label></div>
     <p class="hint">Tiene sentido para ropa (que el cliente vea/elija talla y color). Para comida, normalmente conviene dejarlo apagado — si no, se le muestra al cliente justo lo que le vas a descontar del inventario.</p>
     <p class="hint" id="co-error" style="color:var(--rust);"></p>
     <div class="row">
@@ -5204,7 +5210,7 @@ function limpiarFiltroInventario(){
     <p class="hint" id="esc-estado" style="margin-top:6px;"></p>
   </div>
   <div class="wrap">
-    <div id="esc-productos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;margin-top:20px;"></div>
+    <div id="esc-productos" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,200px));justify-content:center;gap:16px;margin-top:20px;"></div>
   </div>
   <div id="esc-carrito-flotante" style="display:none;position:fixed;bottom:20px;left:0;right:0;text-align:center;z-index:60;">
     <button onclick="abrirCarritoEscaparate()">Ver mi pedido (<span id="esc-carrito-count">0</span>)</button>
