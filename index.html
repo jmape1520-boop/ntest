@@ -1343,8 +1343,20 @@ function normalizarEstado(){
   if(state.categoriasMenu===undefined){
     state.categoriasMenu = ['Entradas', 'Platos fuertes', 'Bebidas', 'Postres'];
   }
-  state.combos.forEach(c=>{ if(c.categoriaMenu===undefined) c.categoriaMenu = ''; if(c.mostrarEnTienda===undefined) c.mostrarEnTienda=false; if(c.imagenUrl===undefined) c.imagenUrl=null; if(c.descripcion===undefined) c.descripcion=''; });
-  state.inventario.forEach(p=>{ if(p.mostrarEnTienda===undefined) p.mostrarEnTienda=false; if(p.imagenUrl===undefined) p.imagenUrl=null; if(p.descripcion===undefined) p.descripcion=''; });
+  state.combos.forEach(c=>{
+    if(c.categoriaMenu===undefined) c.categoriaMenu = '';
+    if(c.mostrarVendedores===undefined) c.mostrarVendedores = !!c.mostrarEnTienda;
+    if(c.mostrarTiendaOnline===undefined) c.mostrarTiendaOnline = !!c.mostrarEnTienda;
+    if(c.imagenUrl===undefined) c.imagenUrl=null;
+    if(c.descripcion===undefined) c.descripcion='';
+  });
+  state.inventario.forEach(p=>{
+    if(p.categoriaMenu===undefined) p.categoriaMenu = '';
+    if(p.mostrarVendedores===undefined) p.mostrarVendedores = !!p.mostrarEnTienda;
+    if(p.mostrarTiendaOnline===undefined) p.mostrarTiendaOnline = !!p.mostrarEnTienda;
+    if(p.imagenUrl===undefined) p.imagenUrl=null;
+    if(p.descripcion===undefined) p.descripcion='';
+  });
   if(state.tiposFiscales===undefined){
     state.tiposFiscales = [
       { id:1, nombre:'Gravado (IVA 13%)', categoria:'iva', tasa:13 },
@@ -1477,7 +1489,7 @@ async function sincronizarCatalogoTienda(){
       codigo:p.codigo, producto:p.producto, categoria:p.categoria, grupoNombre:p.grupoNombre,
       unidad:p.unidad, stock:p.stock, reorden:p.reorden, precioVenta:p.precioVenta,
       esInsumo:p.esInsumo, venderComoExtra:p.venderComoExtra, tamano:p.tamano, qr:p.qr,
-      imagenUrl:p.imagenUrl||null, mostrarEnTienda:!!p.mostrarEnTienda, descripcion:p.descripcion||''
+      imagenUrl:p.imagenUrl||null, mostrarTiendaOnline:!!p.mostrarTiendaOnline, descripcion:p.descripcion||''
     })),
     combos: state.combos,
     promociones: state.promociones,
@@ -1957,8 +1969,8 @@ async function iniciarModoEscaparate(tiendaId){
   }
 }
 function itemsVisiblesEscaparate(){
-  const productos = (escaparateCatalogo.inventario||[]).filter(p=>p.mostrarEnTienda).map(p=>({...p, tipo:'producto', nombre:p.producto}));
-  const combos = (escaparateCatalogo.combos||[]).filter(c=>c.activo && c.mostrarEnTienda).map(c=>({...c, tipo:'combo'}));
+  const productos = (escaparateCatalogo.inventario||[]).filter(p=>p.mostrarTiendaOnline).map(p=>({...p, tipo:'producto', nombre:p.producto}));
+  const combos = (escaparateCatalogo.combos||[]).filter(c=>c.activo && c.mostrarTiendaOnline).map(c=>({...c, tipo:'combo'}));
   return [...productos, ...combos];
 }
 function renderRedesEscaparate(){
@@ -3078,8 +3090,10 @@ function renderMenuRapido(){
     if(busquedaWrap) busquedaWrap.style.display = 'block';
     return;
   }
-  const combosConCategoria = state.combos.filter(c=>c.activo && c.categoriaMenu);
-  if(!combosConCategoria.length){
+  const productosMenu = state.inventario.filter(p=>p.mostrarVendedores && p.categoriaMenu).map(p=>({...p, tipo:'producto', nombre:p.producto}));
+  const combosMenu = state.combos.filter(c=>c.activo && c.mostrarVendedores && c.categoriaMenu).map(c=>({...c, tipo:'combo'}));
+  const itemsMenu = [...productosMenu, ...combosMenu];
+  if(!itemsMenu.length){
     wrap.style.display = 'none';
     if(toggleWrap) toggleWrap.style.display = 'none';
     if(busquedaWrap) busquedaWrap.style.display = 'block';
@@ -3088,12 +3102,12 @@ function renderMenuRapido(){
   wrap.style.display = '';
   if(toggleWrap) toggleWrap.style.display = 'flex';
   if(busquedaWrap && busquedaWrap.style.display !== 'block') busquedaWrap.style.display = 'none';
-  const categorias = [...new Set(combosConCategoria.map(c=>c.categoriaMenu))];
+  const categorias = [...new Set(itemsMenu.map(it=>it.categoriaMenu))];
   const chips = categorias.map(cat=>`<button class="${categoriaMenuSeleccionada===cat?'mini':'btn-tool'}" style="min-height:34px;padding:6px 14px;" onclick="seleccionarCategoriaMenu('${cat.replace(/'/g,"\\'")}')" type="button">${cat}</button>`).join(' ');
-  const mostrar = categoriaMenuSeleccionada ? combosConCategoria.filter(c=>c.categoriaMenu===categoriaMenuSeleccionada) : combosConCategoria;
-  const tarjetas = mostrar.map(c=>`<div class="mini-card" onclick="agregarComboDesdeMenuRapido('${c.codigo}')" style="text-align:center;">
-      <p class="mc-title">${c.nombre}</p>
-      <p class="mc-price" style="margin:4px 0 0;">${fmt(c.precioVenta)}</p>
+  const mostrar = categoriaMenuSeleccionada ? itemsMenu.filter(it=>it.categoriaMenu===categoriaMenuSeleccionada) : itemsMenu;
+  const tarjetas = mostrar.map(it=>`<div class="mini-card" onclick="agregarItemDesdeMenuRapido('${it.tipo}','${it.codigo}')" style="text-align:center;">
+      <p class="mc-title">${it.nombre}</p>
+      <p class="mc-price" style="margin:4px 0 0;">${fmt(it.precioVenta)}</p>
     </div>`).join('');
   document.getElementById('menu-rapido-categorias').innerHTML = `<div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:10px;">${chips}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;">${tarjetas}</div>`;
 }
@@ -3101,14 +3115,25 @@ function seleccionarCategoriaMenu(cat){
   categoriaMenuSeleccionada = categoriaMenuSeleccionada===cat ? '' : cat;
   renderMenuRapido();
 }
-function agregarComboDesdeMenuRapido(codigo){
-  const combo = state.combos.find(c=>c.codigo===codigo && c.activo);
-  if(!combo) return;
-  document.getElementById('v-codigo').value = combo.codigo;
-  document.getElementById('v-producto').value = combo.nombre;
-  document.getElementById('v-precio').value = combo.precioVenta;
-  document.getElementById('v-cantidad').value = 1;
-  abrirPersonalizarCombo(combo);
+function agregarItemDesdeMenuRapido(tipo, codigo){
+  if(tipo==='combo'){
+    const combo = state.combos.find(c=>c.codigo===codigo && c.activo);
+    if(!combo) return;
+    document.getElementById('v-codigo').value = combo.codigo;
+    document.getElementById('v-producto').value = combo.nombre;
+    document.getElementById('v-precio').value = combo.precioVenta;
+    document.getElementById('v-cantidad').value = 1;
+    abrirPersonalizarCombo(combo);
+  } else {
+    const producto = state.inventario.find(p=>p.codigo===codigo);
+    if(!producto) return;
+    document.getElementById('v-codigo').value = producto.codigo;
+    document.getElementById('v-producto').value = producto.producto;
+    document.getElementById('v-precio').value = producto.precioVenta;
+    document.getElementById('v-cantidad').value = 1;
+    const item = leerItemFormulario(false);
+    if(item){ carritoActual.push(item); limpiarCamposItem(); renderCarrito(); }
+  }
 }
 function abrirPersonalizarCombo(combo){
   const cantidad = parseFloat(document.getElementById('v-cantidad').value) || 1;
@@ -4005,6 +4030,7 @@ function renderTiendaOnline(){
   el.innerHTML = items.map(({tipo, ref})=>{
     const nombre = tipo==='producto' ? ref.producto : ref.nombre;
     const inputId = `tienda-img-${tipo}-${ref.id}`;
+    const selCatId = `tienda-cat-${tipo}-${ref.id}`;
     return `<div class="mini-card" style="cursor:default;">
       <div class="mc-row" style="align-items:center;">
         <div style="display:flex;align-items:center;gap:10px;min-width:0;">
@@ -4016,7 +4042,8 @@ function renderTiendaOnline(){
           </div>
         </div>
         <div class="mc-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
-          <label class="check-line" style="font-size:12px;"><input type="checkbox" ${ref.mostrarEnTienda?'checked':''} onchange="toggleMostrarEnTienda('${tipo}',${ref.id}, this.checked)"> Mostrar</label>
+          <label class="check-line" style="font-size:12px;"><input type="checkbox" ${ref.mostrarVendedores?'checked':''} onchange="toggleVisibilidadTienda('${tipo}',${ref.id},'mostrarVendedores', this.checked)"> Vendedores</label>
+          <label class="check-line" style="font-size:12px;"><input type="checkbox" ${ref.mostrarTiendaOnline?'checked':''} onchange="toggleVisibilidadTienda('${tipo}',${ref.id},'mostrarTiendaOnline', this.checked)"> Tienda Online</label>
           <div class="actions-icons">
             <input type="file" id="${inputId}" accept="image/*" style="display:none;" onchange="subirFotoTienda('${tipo}',${ref.id}, this)">
             <button class="btn-icon" title="${ref.imagenUrl?'Cambiar foto':'Agregar foto'}" onclick="document.getElementById('${inputId}').click()">${ICONO_CAJA}</button>
@@ -4024,6 +4051,7 @@ function renderTiendaOnline(){
           </div>
         </div>
       </div>
+      ${state.config.moduloCocina ? `<div class="field-group" style="margin-top:8px;margin-bottom:0;"><select id="${selCatId}" onchange="cambiarCategoriaMenuItem('${tipo}',${ref.id}, this.value)"><option value="">Sin categoría de menú</option>${state.categoriasMenu.map(c=>`<option value="${c}" ${ref.categoriaMenu===c?'selected':''}>${c}</option>`).join('')}</select></div>` : ''}
     </div>`;
   }).join('');
 }
@@ -4046,12 +4074,21 @@ function guardarDescripcionTienda(tipo, id){
   closeModal();
   guardar(); render();
 }
-function toggleMostrarEnTienda(tipo, id, valor){
+function toggleVisibilidadTienda(tipo, id, campo, valor){
   const lista = tipo==='producto' ? state.inventario : state.combos;
   const item = lista.find(x=>x.id===id);
   if(!item) return;
-  item.mostrarEnTienda = valor;
+  item[campo] = valor;
   guardar();
+  if(campo==='mostrarVendedores') renderMenuRapido();
+}
+function cambiarCategoriaMenuItem(tipo, id, valor){
+  const lista = tipo==='producto' ? state.inventario : state.combos;
+  const item = lista.find(x=>x.id===id);
+  if(!item) return;
+  item.categoriaMenu = valor;
+  guardar();
+  renderMenuRapido();
 }
 async function subirFotoTienda(tipo, id, inputEl){
   const archivo = inputEl.files[0];
@@ -4137,7 +4174,7 @@ async function finalizarAgregarProducto(datosProducto, codigo){
     unidad:datosProducto.unidad||'unidad', tamano:datosProducto.tamano||'chico',
     esInsumo:datosProducto.esInsumo||false, modoConsumo:datosProducto.modoConsumo||'capacidad',
     capacidad:datosProducto.capacidad||1, multiplicador:datosProducto.multiplicador||1,
-    venderComoExtra:datosProducto.venderComoExtra||false, imagenUrl:null, mostrarEnTienda:false
+    venderComoExtra:datosProducto.venderComoExtra||false, imagenUrl:null, mostrarVendedores:false, mostrarTiendaOnline:false, categoriaMenu:''
   };
   state.inventario.unshift(nuevo);
   document.getElementById('i-producto').value=''; document.getElementById('i-categoria').value=''; document.getElementById('i-stock').value='';
