@@ -1319,8 +1319,8 @@ function normalizarEstado(){
   if(state.categoriasMenu===undefined){
     state.categoriasMenu = ['Entradas', 'Platos fuertes', 'Bebidas', 'Postres'];
   }
-  state.combos.forEach(c=>{ if(c.categoriaMenu===undefined) c.categoriaMenu = ''; if(c.mostrarEnTienda===undefined) c.mostrarEnTienda=false; if(c.imagenUrl===undefined) c.imagenUrl=null; });
-  state.inventario.forEach(p=>{ if(p.mostrarEnTienda===undefined) p.mostrarEnTienda=false; if(p.imagenUrl===undefined) p.imagenUrl=null; });
+  state.combos.forEach(c=>{ if(c.categoriaMenu===undefined) c.categoriaMenu = ''; if(c.mostrarEnTienda===undefined) c.mostrarEnTienda=false; if(c.imagenUrl===undefined) c.imagenUrl=null; if(c.descripcion===undefined) c.descripcion=''; });
+  state.inventario.forEach(p=>{ if(p.mostrarEnTienda===undefined) p.mostrarEnTienda=false; if(p.imagenUrl===undefined) p.imagenUrl=null; if(p.descripcion===undefined) p.descripcion=''; });
   if(state.tiposFiscales===undefined){
     state.tiposFiscales = [
       { id:1, nombre:'Gravado (IVA 13%)', categoria:'iva', tasa:13 },
@@ -1449,13 +1449,16 @@ async function sincronizarCatalogoTienda(){
     inventario: state.inventario.map(p=>({
       codigo:p.codigo, producto:p.producto, categoria:p.categoria, grupoNombre:p.grupoNombre,
       unidad:p.unidad, stock:p.stock, reorden:p.reorden, precioVenta:p.precioVenta,
-      esInsumo:p.esInsumo, venderComoExtra:p.venderComoExtra, tamano:p.tamano, qr:p.qr
+      esInsumo:p.esInsumo, venderComoExtra:p.venderComoExtra, tamano:p.tamano, qr:p.qr,
+      imagenUrl:p.imagenUrl||null, mostrarEnTienda:!!p.mostrarEnTienda, descripcion:p.descripcion||''
     })),
     combos: state.combos,
     promociones: state.promociones,
     tasa: state.config.tasa,
     moneda: state.config.moneda,
-    sugerenciaEmpaque: state.config.sugerenciaEmpaque
+    sugerenciaEmpaque: state.config.sugerenciaEmpaque,
+    tiendaOnlineActiva: !!state.config.tiendaOnlineActiva,
+    whatsappTienda: state.config.whatsappTienda || ''
   };
   try{ await window.fb.guardarCatalogoTienda(currentTiendaId, catalogo); }catch(e){ console.error(e); }
 }
@@ -1900,7 +1903,95 @@ function arrancarEscuchaSesion(){
     }
   });
 }
-if(window.fb){
+let escaparateCatalogo = null;
+let escaparateCarrito = [];
+async function iniciarModoEscaparate(tiendaId){
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display = 'none';
+  document.getElementById('escaparate-publico').style.display = 'block';
+  document.getElementById('esc-estado').textContent = 'Cargando...';
+  try{
+    const tienda = await window.fb.leerTiendaPublica(tiendaId);
+    document.getElementById('esc-nombre-tienda').textContent = tienda ? tienda.nombre : 'Tienda';
+    const raw = await window.fb.leerCatalogoPublico(tiendaId);
+    if(!raw){ document.getElementById('esc-estado').textContent = 'Esta tienda todavía no tiene su catálogo listo.'; return; }
+    escaparateCatalogo = JSON.parse(raw);
+    if(!escaparateCatalogo.tiendaOnlineActiva){
+      document.getElementById('esc-estado').textContent = 'Esta tienda no tiene su escaparate activado por el momento.';
+      return;
+    }
+    renderProductosEscaparate();
+  }catch(e){
+    document.getElementById('esc-estado').textContent = 'No se pudo cargar esta tienda. Revisá el link e intentá de nuevo.';
+  }
+}
+function itemsVisiblesEscaparate(){
+  const productos = (escaparateCatalogo.inventario||[]).filter(p=>p.mostrarEnTienda).map(p=>({...p, tipo:'producto', nombre:p.producto}));
+  const combos = (escaparateCatalogo.combos||[]).filter(c=>c.activo && c.mostrarEnTienda).map(c=>({...c, tipo:'combo'}));
+  return [...productos, ...combos];
+}
+function renderProductosEscaparate(){
+  const items = itemsVisiblesEscaparate();
+  const moneda = escaparateCatalogo.moneda || '$';
+  const el = document.getElementById('esc-productos');
+  if(!items.length){ el.innerHTML = ''; document.getElementById('esc-estado').textContent = 'Todavía no hay productos disponibles.'; return; }
+  document.getElementById('esc-estado').textContent = '';
+  el.innerHTML = items.map(it=>`
+    <div class="mini-card" style="cursor:default;text-align:center;">
+      ${it.imagenUrl ? `<img src="${it.imagenUrl}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;margin-bottom:8px;">` : `<div style="width:100%;aspect-ratio:1;border-radius:10px;background:var(--surface-container-high);margin-bottom:8px;display:flex;align-items:center;justify-content:center;">${ICONO_CAJA}</div>`}
+      <p class="mc-title">${it.nombre}</p>
+      ${it.descripcion ? `<p class="hint" style="font-size:11px;">${it.descripcion}</p>` : ''}
+      <p class="mc-price">${moneda}${Number(it.precioVenta||0).toFixed(2)}</p>
+      <button class="mini" type="button" onclick="agregarAlCarritoEscaparate('${it.codigo}')" style="width:100%;">+ Agregar</button>
+    </div>
+  `).join('');
+}
+function agregarAlCarritoEscaparate(codigo){
+  const item = itemsVisiblesEscaparate().find(x=>x.codigo===codigo);
+  if(!item) return;
+  const existente = escaparateCarrito.find(x=>x.codigo===codigo);
+  if(existente) existente.cantidad++;
+  else escaparateCarrito.push({codigo:item.codigo, nombre:item.nombre, precioVenta:item.precioVenta, cantidad:1});
+  actualizarBotonCarritoEscaparate();
+}
+function actualizarBotonCarritoEscaparate(){
+  const total = escaparateCarrito.reduce((s,it)=>s+it.cantidad,0);
+  document.getElementById('esc-carrito-count').textContent = total;
+  document.getElementById('esc-carrito-flotante').style.display = total>0 ? 'block' : 'none';
+}
+function quitarDelCarritoEscaparate(idx){
+  escaparateCarrito.splice(idx,1);
+  actualizarBotonCarritoEscaparate();
+  if(escaparateCarrito.length) abrirCarritoEscaparate(); else closeModal();
+}
+function abrirCarritoEscaparate(){
+  const moneda = escaparateCatalogo.moneda || '$';
+  const total = escaparateCarrito.reduce((s,it)=>s+it.cantidad*it.precioVenta,0);
+  const filas = escaparateCarrito.map((it,i)=>`<div class="row" style="justify-content:space-between;flex-wrap:nowrap;"><span style="font-size:13px;">${it.cantidad}x ${it.nombre}</span><span style="display:flex;align-items:center;gap:6px;"><span class="num" style="font-size:13px;">${moneda}${(it.cantidad*it.precioVenta).toFixed(2)}</span><button class="btn-icon danger" onclick="quitarDelCarritoEscaparate(${i})">${ICONO_X}</button></span></div>`).join('');
+  openModal(`
+    <h3>Tu pedido</h3>
+    ${filas || '<p class="empty">Todavía no agregaste nada.</p>'}
+    ${escaparateCarrito.length ? `<div class="row" style="justify-content:space-between;font-weight:700;border-top:1px solid var(--outline-variant);padding-top:8px;margin-top:8px;"><span>Total</span><span>${moneda}${total.toFixed(2)}</span></div>
+    <div class="field-group"><label>Tu nombre</label><input type="text" id="esc-cliente-nombre" placeholder="Nombre"></div>
+    <div class="row"><button class="secondary" onclick="closeModal()">Seguir viendo</button><button onclick="enviarPedidoEscaparate()">Enviar pedido por WhatsApp</button></div>` : `<div class="row"><button class="secondary" onclick="closeModal()">Cerrar</button></div>`}
+  `);
+}
+function enviarPedidoEscaparate(){
+  const numero = (escaparateCatalogo.whatsappTienda||'').replace(/[^0-9]/g,'');
+  if(!numero){ mostrarAlerta('Esta tienda todavía no configuró un WhatsApp para recibir pedidos.'); return; }
+  const nombreCliente = document.getElementById('esc-cliente-nombre').value.trim() || 'Cliente';
+  const moneda = escaparateCatalogo.moneda || '$';
+  const total = escaparateCarrito.reduce((s,it)=>s+it.cantidad*it.precioVenta,0);
+  const lineas = escaparateCarrito.map(it=>`• ${it.cantidad}x ${it.nombre} — ${moneda}${(it.cantidad*it.precioVenta).toFixed(2)}`).join('\n');
+  const mensaje = `Hola, soy ${nombreCliente} y quiero hacer este pedido:\n\n${lineas}\n\nTotal: ${moneda}${total.toFixed(2)}`;
+  window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`, '_blank');
+  closeModal();
+}
+const tiendaEscaparateParam = new URLSearchParams(location.search).get('tienda');
+if(tiendaEscaparateParam){
+  if(window.fb) iniciarModoEscaparate(tiendaEscaparateParam);
+  else window.addEventListener('fbListo', ()=>iniciarModoEscaparate(tiendaEscaparateParam), { once: true });
+} else if(window.fb){
   arrancarEscuchaSesion();
 } else {
   window.addEventListener('fbListo', arrancarEscuchaSesion, { once: true });
@@ -3787,16 +3878,39 @@ function renderTiendaOnline(){
           <div style="min-width:0;">
             <p class="mc-title">${nombre}</p>
             <p class="hint mc-sub">${fmt(ref.precioVenta)}</p>
+            ${ref.descripcion ? `<p class="hint mc-sub" style="font-style:italic;">${ref.descripcion}</p>` : ''}
           </div>
         </div>
         <div class="mc-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
           <label class="check-line" style="font-size:12px;"><input type="checkbox" ${ref.mostrarEnTienda?'checked':''} onchange="toggleMostrarEnTienda('${tipo}',${ref.id}, this.checked)"> Mostrar</label>
-          <input type="file" id="${inputId}" accept="image/*" style="display:none;" onchange="subirFotoTienda('${tipo}',${ref.id}, this)">
-          <button class="btn-icon" title="${ref.imagenUrl?'Cambiar foto':'Agregar foto'}" onclick="document.getElementById('${inputId}').click()">${ICONO_LAPIZ}</button>
+          <div class="actions-icons">
+            <input type="file" id="${inputId}" accept="image/*" style="display:none;" onchange="subirFotoTienda('${tipo}',${ref.id}, this)">
+            <button class="btn-icon" title="${ref.imagenUrl?'Cambiar foto':'Agregar foto'}" onclick="document.getElementById('${inputId}').click()">${ICONO_CAJA}</button>
+            <button class="btn-icon" title="Descripción" onclick="editarDescripcionTienda('${tipo}',${ref.id})">${ICONO_LAPIZ}</button>
+          </div>
         </div>
       </div>
     </div>`;
   }).join('');
+}
+function editarDescripcionTienda(tipo, id){
+  const lista = tipo==='producto' ? state.inventario : state.combos;
+  const item = lista.find(x=>x.id===id);
+  if(!item) return;
+  const nombre = tipo==='producto' ? item.producto : item.nombre;
+  openModal(`
+    <h3>${nombre}</h3>
+    <div class="field-group"><label>Descripción para tu Tienda Online (opcional)</label><textarea id="tienda-descripcion-input" rows="3" placeholder="Ej. Camisa 100% algodón, disponible en varios colores.">${item.descripcion||''}</textarea></div>
+    <div class="row"><button class="secondary" onclick="closeModal()">Cancelar</button><button onclick="guardarDescripcionTienda('${tipo}',${id})">Guardar</button></div>
+  `);
+}
+function guardarDescripcionTienda(tipo, id){
+  const lista = tipo==='producto' ? state.inventario : state.combos;
+  const item = lista.find(x=>x.id===id);
+  if(!item) return;
+  item.descripcion = document.getElementById('tienda-descripcion-input').value.trim();
+  closeModal();
+  guardar(); render();
 }
 function toggleMostrarEnTienda(tipo, id, valor){
   const lista = tipo==='producto' ? state.inventario : state.combos;
@@ -4986,6 +5100,18 @@ function limpiarFiltroInventario(){
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal-box" id="modal-box">
     <div id="modal-body"></div>
+  </div>
+</div>
+<div id="escaparate-publico" style="display:none;">
+  <div class="wrap">
+    <div style="text-align:center;padding:24px 0 8px;">
+      <h1 id="esc-nombre-tienda" style="margin:0;font-size:1.6rem;"></h1>
+      <p class="hint" id="esc-estado"></p>
+    </div>
+    <div id="esc-productos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-top:16px;"></div>
+  </div>
+  <div id="esc-carrito-flotante" style="display:none;position:fixed;bottom:20px;left:0;right:0;text-align:center;z-index:60;">
+    <button onclick="abrirCarritoEscaparate()" style="box-shadow:var(--elev-2);">Ver mi pedido (<span id="esc-carrito-count">0</span>)</button>
   </div>
 </div>
 <div id="custom-alert" class="modal-overlay">
