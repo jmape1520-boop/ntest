@@ -327,6 +327,23 @@
   .mobile-card-list{ display:block; }
   .desktop-table-wrap{ display:none; }
   .mini-card{ background:var(--surface-container); border-radius:var(--radius-md); padding:12px 14px; margin-bottom:8px; cursor:pointer; transition:background 0.15s; overflow:hidden; }
+
+  /* Tienda Online (escaparate público) */
+  #escaparate-publico{ background:var(--surface); min-height:100vh; }
+  #escaparate-publico .wrap{ max-width:1100px; }
+  #esc-nombre-tienda{ font-weight:900; letter-spacing:-0.02em; }
+  #esc-productos{ padding-bottom:90px; }
+  .esc-card{ background:var(--surface-container); border-radius:var(--radius-lg); overflow:hidden; box-shadow:var(--elev-1); transition:box-shadow 0.2s, transform 0.2s; display:flex; flex-direction:column; }
+  .esc-card:hover{ box-shadow:var(--elev-2); transform:translateY(-2px); }
+  .esc-card-img{ width:100%; aspect-ratio:1; object-fit:cover; display:block; }
+  .esc-card-img-vacia{ background:var(--surface-container-high); display:flex; align-items:center; justify-content:center; color:var(--on-surface-variant); }
+  .esc-card-body{ padding:12px 14px 14px; display:flex; flex-direction:column; gap:4px; flex:1; }
+  .esc-card-nombre{ margin:0; font-weight:800; font-size:0.98rem; }
+  .esc-card-desc{ margin:0; font-size:12px; color:var(--on-surface-variant); line-height:1.35; }
+  .esc-card-footer{ margin-top:auto; padding-top:8px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .esc-card-precio{ font-weight:900; font-size:1.05rem; color:var(--primary); }
+  .esc-card-footer button{ padding:8px 14px; min-height:auto; font-size:13px; border-radius:var(--radius-full); }
+  #esc-carrito-flotante button{ box-shadow:var(--elev-2); font-weight:800; padding:14px 28px; border-radius:var(--radius-full); }
   .mini-card:hover{ background:var(--surface-container-high); }
   .mini-card .mc-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; min-width:0; }
   .mini-card .mc-row > div:first-child{ min-width:0; flex:1 1 auto; }
@@ -1937,22 +1954,76 @@ function renderProductosEscaparate(){
   if(!items.length){ el.innerHTML = ''; document.getElementById('esc-estado').textContent = 'Todavía no hay productos disponibles.'; return; }
   document.getElementById('esc-estado').textContent = '';
   el.innerHTML = items.map(it=>`
-    <div class="mini-card" style="cursor:default;text-align:center;">
-      ${it.imagenUrl ? `<img src="${it.imagenUrl}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;margin-bottom:8px;">` : `<div style="width:100%;aspect-ratio:1;border-radius:10px;background:var(--surface-container-high);margin-bottom:8px;display:flex;align-items:center;justify-content:center;">${ICONO_CAJA}</div>`}
-      <p class="mc-title">${it.nombre}</p>
-      ${it.descripcion ? `<p class="hint" style="font-size:11px;">${it.descripcion}</p>` : ''}
-      <p class="mc-price">${moneda}${Number(it.precioVenta||0).toFixed(2)}</p>
-      <button class="mini" type="button" onclick="agregarAlCarritoEscaparate('${it.codigo}')" style="width:100%;">+ Agregar</button>
+    <div class="esc-card">
+      ${it.imagenUrl ? `<img src="${it.imagenUrl}" class="esc-card-img">` : `<div class="esc-card-img esc-card-img-vacia">${ICONO_CAJA}</div>`}
+      <div class="esc-card-body">
+        <p class="esc-card-nombre">${it.nombre}</p>
+        ${it.descripcion ? `<p class="esc-card-desc">${it.descripcion}</p>` : ''}
+        <div class="esc-card-footer">
+          <span class="esc-card-precio">${moneda}${Number(it.precioVenta||0).toFixed(2)}</span>
+          <button type="button" onclick="abrirDetalleItemEscaparate('${it.tipo}','${it.codigo}')">+ Agregar</button>
+        </div>
+      </div>
     </div>
   `).join('');
 }
-function agregarAlCarritoEscaparate(codigo){
+function abrirDetalleItemEscaparate(tipo, codigo){
   const item = itemsVisiblesEscaparate().find(x=>x.codigo===codigo);
   if(!item) return;
-  const existente = escaparateCarrito.find(x=>x.codigo===codigo);
-  if(existente) existente.cantidad++;
-  else escaparateCarrito.push({codigo:item.codigo, nombre:item.nombre, precioVenta:item.precioVenta, cantidad:1});
+  const esCombo = tipo==='combo';
+  const gruposCombo = esCombo ? (item.componentes||[]).filter(c=>c.tipo==='grupo') : [];
+  const fijosCombo = esCombo ? (item.componentes||[]).filter(c=>c.tipo!=='grupo') : [];
+  const mostrarFijos = esCombo && item.mostrarDetalleTienda && fijosCombo.length;
+  const filasGrupos = gruposCombo.map((g,i)=>{
+    const variantes = (escaparateCatalogo.inventario||[]).filter(p=>p.grupoNombre===g.grupoNombre);
+    return `<div class="field-group"><label>${g.grupoNombre}</label><select id="esc-grupo-${i}">${variantes.map(v=>`<option value="${v.codigo}">${v.producto.replace(g.grupoNombre,'').trim()||v.producto}</option>`).join('')}</select></div>`;
+  }).join('');
+  const filasFijos = mostrarFijos ? fijosCombo.map((f,i)=>{
+    const prod = (escaparateCatalogo.inventario||[]).find(p=>p.codigo===f.codigo);
+    return `<label class="check-line"><input type="checkbox" class="esc-fijo-check" checked data-idx="${i}"> ${prod?prod.producto:f.codigo}</label>`;
+  }).join('') : '';
+  openModal(`
+    <h3>${item.nombre}</h3>
+    ${item.descripcion ? `<p class="hint">${item.descripcion}</p>` : ''}
+    <div class="field-group"><label>Cantidad</label><input type="number" id="esc-detalle-cantidad" value="1" min="1" step="1"></div>
+    ${filasGrupos}
+    ${mostrarFijos ? `<p class="hint">Desmarcá lo que no quieras:</p>${filasFijos}` : ''}
+    <div class="field-group"><label>Alguna nota (opcional)</label><input type="text" id="esc-detalle-nota" placeholder="Ej. sin cebolla, bien cocido"></div>
+    <div class="row"><button class="secondary" onclick="closeModal()">Cancelar</button><button onclick="confirmarAgregarItemEscaparate('${tipo}','${codigo}')">Agregar al pedido</button></div>
+  `);
+  window._escGruposTemp = gruposCombo;
+  window._escFijosTemp = fijosCombo;
+}
+function confirmarAgregarItemEscaparate(tipo, codigo){
+  const item = itemsVisiblesEscaparate().find(x=>x.codigo===codigo);
+  if(!item) return;
+  const cantidad = parseFloat(document.getElementById('esc-detalle-cantidad').value) || 1;
+  const nota = document.getElementById('esc-detalle-nota').value.trim();
+  const grupos = window._escGruposTemp || [];
+  const fijos = window._escFijosTemp || [];
+  let detalleVariantes = [];
+  for(let i=0;i<grupos.length;i++){
+    const sel = document.getElementById(`esc-grupo-${i}`);
+    if(sel){
+      const variante = (escaparateCatalogo.inventario||[]).find(p=>p.codigo===sel.value);
+      if(variante) detalleVariantes.push(variante.producto);
+    }
+  }
+  let excluidos = [];
+  if(item.mostrarDetalleTienda && fijos.length){
+    document.querySelectorAll('.esc-fijo-check').forEach((chk,i)=>{
+      if(!chk.checked){
+        const prod = (escaparateCatalogo.inventario||[]).find(p=>p.codigo===fijos[i].codigo);
+        excluidos.push(prod?prod.producto:fijos[i].codigo);
+      }
+    });
+  }
+  escaparateCarrito.push({
+    codigo:item.codigo, nombre:item.nombre, precioVenta:item.precioVenta, cantidad,
+    variantes:detalleVariantes, excluidos, nota
+  });
   actualizarBotonCarritoEscaparate();
+  closeModal();
 }
 function actualizarBotonCarritoEscaparate(){
   const total = escaparateCarrito.reduce((s,it)=>s+it.cantidad,0);
@@ -1964,15 +2035,34 @@ function quitarDelCarritoEscaparate(idx){
   actualizarBotonCarritoEscaparate();
   if(escaparateCarrito.length) abrirCarritoEscaparate(); else closeModal();
 }
+function detalleLineaEscaparate(it){
+  const partes = [];
+  if(it.variantes && it.variantes.length) partes.push(it.variantes.join(', '));
+  if(it.excluidos && it.excluidos.length) partes.push('sin '+it.excluidos.join(', '));
+  if(it.nota) partes.push(it.nota);
+  return partes.length ? ` (${partes.join(' — ')})` : '';
+}
+function onEntregaEscaparateChange(){
+  const esEnvio = document.getElementById('esc-entrega').value === 'envio';
+  document.getElementById('esc-direccion-wrap').style.display = esEnvio ? 'block' : 'none';
+}
 function abrirCarritoEscaparate(){
   const moneda = escaparateCatalogo.moneda || '$';
   const total = escaparateCarrito.reduce((s,it)=>s+it.cantidad*it.precioVenta,0);
-  const filas = escaparateCarrito.map((it,i)=>`<div class="row" style="justify-content:space-between;flex-wrap:nowrap;"><span style="font-size:13px;">${it.cantidad}x ${it.nombre}</span><span style="display:flex;align-items:center;gap:6px;"><span class="num" style="font-size:13px;">${moneda}${(it.cantidad*it.precioVenta).toFixed(2)}</span><button class="btn-icon danger" onclick="quitarDelCarritoEscaparate(${i})">${ICONO_X}</button></span></div>`).join('');
+  const filas = escaparateCarrito.map((it,i)=>`<div class="row" style="justify-content:space-between;flex-wrap:nowrap;align-items:flex-start;"><span style="font-size:13px;">${it.cantidad}x ${it.nombre}${detalleLineaEscaparate(it)}</span><span style="display:flex;align-items:center;gap:6px;"><span class="num" style="font-size:13px;">${moneda}${(it.cantidad*it.precioVenta).toFixed(2)}</span><button class="btn-icon danger" onclick="quitarDelCarritoEscaparate(${i})">${ICONO_X}</button></span></div>`).join('');
   openModal(`
     <h3>Tu pedido</h3>
     ${filas || '<p class="empty">Todavía no agregaste nada.</p>'}
     ${escaparateCarrito.length ? `<div class="row" style="justify-content:space-between;font-weight:700;border-top:1px solid var(--outline-variant);padding-top:8px;margin-top:8px;"><span>Total</span><span>${moneda}${total.toFixed(2)}</span></div>
     <div class="field-group"><label>Tu nombre</label><input type="text" id="esc-cliente-nombre" placeholder="Nombre"></div>
+    <div class="field-group">
+      <label>¿Cómo lo querés?</label>
+      <select id="esc-entrega" onchange="onEntregaEscaparateChange()">
+        <option value="tienda">Recoger en tienda</option>
+        <option value="envio">Envío a domicilio</option>
+      </select>
+    </div>
+    <div class="field-group" id="esc-direccion-wrap" style="display:none;"><label>Dirección de envío</label><input type="text" id="esc-direccion" placeholder="Dirección completa"></div>
     <div class="row"><button class="secondary" onclick="closeModal()">Seguir viendo</button><button onclick="enviarPedidoEscaparate()">Enviar pedido por WhatsApp</button></div>` : `<div class="row"><button class="secondary" onclick="closeModal()">Cerrar</button></div>`}
   `);
 }
@@ -1980,10 +2070,14 @@ function enviarPedidoEscaparate(){
   const numero = (escaparateCatalogo.whatsappTienda||'').replace(/[^0-9]/g,'');
   if(!numero){ mostrarAlerta('Esta tienda todavía no configuró un WhatsApp para recibir pedidos.'); return; }
   const nombreCliente = document.getElementById('esc-cliente-nombre').value.trim() || 'Cliente';
+  const entrega = document.getElementById('esc-entrega').value;
+  const direccion = document.getElementById('esc-direccion') ? document.getElementById('esc-direccion').value.trim() : '';
+  if(entrega==='envio' && !direccion){ mostrarAlerta('Metele la dirección para el envío.'); return; }
   const moneda = escaparateCatalogo.moneda || '$';
   const total = escaparateCarrito.reduce((s,it)=>s+it.cantidad*it.precioVenta,0);
-  const lineas = escaparateCarrito.map(it=>`• ${it.cantidad}x ${it.nombre} — ${moneda}${(it.cantidad*it.precioVenta).toFixed(2)}`).join('\n');
-  const mensaje = `Hola, soy ${nombreCliente} y quiero hacer este pedido:\n\n${lineas}\n\nTotal: ${moneda}${total.toFixed(2)}`;
+  const lineas = escaparateCarrito.map(it=>`• ${it.cantidad}x ${it.nombre}${detalleLineaEscaparate(it)} — ${moneda}${(it.cantidad*it.precioVenta).toFixed(2)}`).join('\n');
+  const entregaTexto = entrega==='envio' ? `Envío a domicilio — ${direccion}` : 'Recoger en tienda';
+  const mensaje = `Hola, soy ${nombreCliente} y quiero hacer este pedido:\n\n${lineas}\n\nTotal: ${moneda}${total.toFixed(2)}\n\n${entregaTexto}`;
   window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`, '_blank');
   closeModal();
 }
@@ -4380,6 +4474,8 @@ function abrirCrearCombo(idExistente){
       <select id="combo-categoria-menu"><option value="">Sin categoría</option></select>
     </div>
     <div class="row"><label class="check-line"><input type="checkbox" id="co-qr" ${existente&&existente.qr?'checked':''}> Generar código QR para el combo</label></div>
+    <div class="row"><label class="check-line"><input type="checkbox" id="co-mostrar-detalle" ${existente&&existente.mostrarDetalleTienda?'checked':''}> Mostrar el detalle de ingredientes fijos en la Tienda Online</label></div>
+    <p class="hint">Tiene sentido para ropa (que el cliente vea/elija talla y color). Para comida, normalmente conviene dejarlo apagado — si no, se le muestra al cliente justo lo que le vas a descontar del inventario.</p>
     <p class="hint" id="co-error" style="color:var(--rust);"></p>
     <div class="row">
       <button class="secondary" onclick="closeModal()">Cancelar</button>
@@ -4427,6 +4523,7 @@ function confirmarCrearCombo(){
   const nombre = document.getElementById('co-nombre').value.trim().toUpperCase();
   const precioVenta = parseFloat(document.getElementById('co-precio').value) || 0;
   const qr = document.getElementById('co-qr').checked;
+  const mostrarDetalleTienda = document.getElementById('co-mostrar-detalle').checked;
   const categoriaMenu = state.config.moduloCocina && document.getElementById('combo-categoria-menu') ? document.getElementById('combo-categoria-menu').value : '';
   const err = document.getElementById('co-error');
   const componentes = comboSlots
@@ -4438,12 +4535,12 @@ function confirmarCrearCombo(){
 
   if(comboEditandoId){
     const c = state.combos.find(x=>x.id===comboEditandoId);
-    c.nombre = nombre; c.precioVenta = precioVenta; c.componentes = componentes; c.qr = qr; c.categoriaMenu = categoriaMenu;
+    c.nombre = nombre; c.precioVenta = precioVenta; c.componentes = componentes; c.qr = qr; c.categoriaMenu = categoriaMenu; c.mostrarDetalleTienda = mostrarDetalleTienda;
     closeModal();
     guardar(); render();
   } else {
     const codigo = generarCodigo(nombre);
-    state.combos.push({id:Date.now(), codigo, nombre, precioVenta, activo:true, componentes, qr, categoriaMenu});
+    state.combos.push({id:Date.now(), codigo, nombre, precioVenta, activo:true, componentes, qr, categoriaMenu, mostrarDetalleTienda});
     closeModal();
     guardar(); render();
   }
@@ -5103,15 +5200,15 @@ function limpiarFiltroInventario(){
   </div>
 </div>
 <div id="escaparate-publico" style="display:none;">
+  <div style="background:linear-gradient(135deg, var(--primary-container), var(--surface-container)); padding:36px 20px 28px; text-align:center;">
+    <h1 id="esc-nombre-tienda" style="margin:0;font-size:1.9rem;"></h1>
+    <p class="hint" id="esc-estado" style="margin-top:6px;"></p>
+  </div>
   <div class="wrap">
-    <div style="text-align:center;padding:24px 0 8px;">
-      <h1 id="esc-nombre-tienda" style="margin:0;font-size:1.6rem;"></h1>
-      <p class="hint" id="esc-estado"></p>
-    </div>
-    <div id="esc-productos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-top:16px;"></div>
+    <div id="esc-productos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;margin-top:20px;"></div>
   </div>
   <div id="esc-carrito-flotante" style="display:none;position:fixed;bottom:20px;left:0;right:0;text-align:center;z-index:60;">
-    <button onclick="abrirCarritoEscaparate()" style="box-shadow:var(--elev-2);">Ver mi pedido (<span id="esc-carrito-count">0</span>)</button>
+    <button onclick="abrirCarritoEscaparate()">Ver mi pedido (<span id="esc-carrito-count">0</span>)</button>
   </div>
 </div>
 <div id="custom-alert" class="modal-overlay">
