@@ -886,7 +886,7 @@
         <button class="secondary" type="button" onclick="abrirCrearVariantes()">Crear con variantes (talla/color)</button>
       </div>
       <div class="row">
-        <button class="btn-tool" type="button" onclick="abrirCopiarProductos()">Copiar productos de otra tienda</button>
+        <button class="btn-tool" id="btn-copiar-productos" type="button" onclick="abrirCopiarProductos()">Copiar productos de otra tienda</button>
         <button class="btn-tool" type="button" onclick="descargarTodosLosQR()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Descargar todos los QR (PDF)</button>
       </div>
     </div>
@@ -1541,11 +1541,62 @@ async function guardar(){
 function fmt(n){ return state.config.moneda + Number(n||0).toFixed(2); }
 const ETIQUETA_UNIDAD = { unidad:'u', kg:'kg', g:'g', lb:'lb', oz:'oz', l:'l', ml:'ml' };
 const LIMITES_PLAN = {
-  gratis:  { nombre:'Gratis',  productos:50,      equipo:0,        tiendaOnline:true, fotosTienda:false, cadenas:false },
-  starter: { nombre:'Starter', productos:Infinity, equipo:3,        tiendaOnline:true, fotosTienda:true,  cadenas:false },
-  medio:   { nombre:'Medio',   productos:Infinity, equipo:5,        tiendaOnline:true, fotosTienda:true,  cadenas:true  },
-  beast:   { nombre:'Beast',   productos:Infinity, equipo:Infinity, tiendaOnline:true, fotosTienda:true,  cadenas:true  }
+  gratis: {
+    nombre:'Gratis',
+    productos: 50,
+    kardex: false,
+    copiarProductosOtraTienda: false,
+    cotizacionesPorMes: 5,
+    combos: 10,
+    contabilidad: false,
+    promociones: false,
+    codigoVendedor: false,
+    tiendaOnline: true,
+    tiendaOnlineProductos: 35,
+    tiendaOnlineConFoto: 5,
+    tiendas: 1,
+    historialMeses: 3,
+    excelCompleto: false,
+    equipo: { vendedor:1, cocina:1, contador:0, mesero:0 }
+  },
+  starter: {
+    nombre:'Starter',
+    productos: 1500,
+    kardex: true,
+    copiarProductosOtraTienda: true,
+    cotizacionesPorMes: Infinity,
+    combos: Infinity,
+    contabilidad: true,
+    promociones: true,
+    codigoVendedor: true,
+    tiendaOnline: true,
+    tiendaOnlineProductos: 500,
+    tiendaOnlineConFoto: 500,
+    tiendas: 3,
+    historialMeses: Infinity,
+    excelCompleto: true,
+    equipo: { vendedor:6, cocina:3, contador:1, mesero:6 }
+  },
+  premium: {
+    nombre:'Premium',
+    productos: Infinity,
+    kardex: true,
+    copiarProductosOtraTienda: true,
+    cotizacionesPorMes: Infinity,
+    combos: Infinity,
+    contabilidad: true,
+    promociones: true,
+    codigoVendedor: true,
+    tiendaOnline: true,
+    tiendaOnlineProductos: Infinity,
+    tiendaOnlineConFoto: Infinity,
+    tiendas: Infinity,
+    historialMeses: Infinity,
+    excelCompleto: true,
+    equipo: { vendedor:Infinity, cocina:Infinity, contador:Infinity, mesero:Infinity }
+  }
 };
+const PESO_MAX_IMAGEN_MB = 1;
 function limitesDelPlan(){
   return LIMITES_PLAN[state.config.plan] || LIMITES_PLAN.gratis;
 }
@@ -1557,6 +1608,19 @@ function aplicarLimitesPlan(){
     corrigioAlgo = true;
   }
   return corrigioAlgo;
+}
+function aplicarVisibilidadPlan(){
+  const l = limitesDelPlan();
+  const tabKardex = document.querySelector('.tab[data-tab="kardex"]');
+  if(tabKardex) tabKardex.style.display = l.kardex ? 'flex' : 'none';
+  const tabContabilidad = document.querySelector('.tab[data-tab="contabilidad"]');
+  if(tabContabilidad) tabContabilidad.style.display = l.contabilidad ? 'flex' : 'none';
+  const tabPromos = document.querySelector('.tab[data-tab="promos"]');
+  if(tabPromos) tabPromos.style.display = l.promociones ? 'flex' : 'none';
+  const accCodVendedor = document.getElementById('acc-cod-vendedor');
+  if(accCodVendedor && currentRol==='propietario') accCodVendedor.style.display = l.codigoVendedor ? '' : 'none';
+  const btnCopiar = document.getElementById('btn-copiar-productos');
+  if(btnCopiar) btnCopiar.style.display = l.copiarProductosOtraTienda ? '' : 'none';
 }
 const CATEGORIAS_POR_RUBRO = {
   ropa: ['Camisas','Pantalones','Vestidos','Calzado','Ropa interior','Accesorios'],
@@ -1938,6 +2002,7 @@ async function finalizarEntrada(nombreTienda){
   document.getElementById('perfil-menu-rol-texto').textContent = etiquetaRol(currentRol);
   aplicarRestriccionesRol();
   await cargarDatosTienda();
+  aplicarVisibilidadPlan();
   if(currentRol === 'propietario'){
     await refrescarListaVendedores();
     await refrescarListaTiendas();
@@ -2260,18 +2325,19 @@ if(tiendaEscaparateParam){
 }
 
 async function crearVendedorUI(){
-  const limites = limitesDelPlan();
-  const equipoActual = (window._equipoTemp||[]).filter(v=>v.rol!=='eliminado').length;
-  if(equipoActual >= limites.equipo){
-    document.getElementById('ve-error').textContent = `Tu plan (${limites.nombre}) permite hasta ${limites.equipo} personas en el equipo. Para agregar más, necesitás subir de plan.`;
-    return;
-  }
   const nombre = document.getElementById('ve-nombre').value.trim();
   const email = document.getElementById('ve-email').value.trim();
   const pass = document.getElementById('ve-pass').value;
   const rol = document.getElementById('ve-rol').value;
   const err = document.getElementById('ve-error');
   err.textContent = '';
+  const limites = limitesDelPlan();
+  const limiteDelRol = limites.equipo[rol];
+  const actualesDeEseRol = (window._equipoTemp||[]).filter(v=>v.rol===rol).length;
+  if(limiteDelRol!==undefined && actualesDeEseRol >= limiteDelRol){
+    err.textContent = `Tu plan (${limites.nombre}) permite hasta ${limiteDelRol} de rol "${rol}". Para agregar más, necesitás subir de plan.`;
+    return;
+  }
   if(!nombre || !email){ err.textContent = 'Metele nombre y correo.'; return; }
   if(!passwordValida(pass)){ err.textContent = 'La contraseña necesita mínimo 8 caracteres, una mayúscula y un número.'; return; }
   try{
@@ -2692,9 +2758,10 @@ function actualizarDetallePlan(){
   if(!el || !nombreEl) return;
   const l = limitesDelPlan();
   nombreEl.textContent = l.nombre;
-  const equipo = l.equipo===Infinity ? 'sin límite' : `hasta ${l.equipo}`;
   const productos = l.productos===Infinity ? 'sin límite' : `hasta ${l.productos}`;
-  el.textContent = `Incluye: ${productos} de productos · equipo ${equipo} · Tienda Online: ${l.tiendaOnline?'sí':'no'} · Fotos: ${l.fotosTienda?'sí':'no'} · Cadenas: ${l.cadenas?'sí':'no'}`;
+  const eq = l.equipo;
+  const equipoTxt = `Vendedor: ${eq.vendedor===Infinity?'sin límite':eq.vendedor}, Cocina: ${eq.cocina===Infinity?'sin límite':eq.cocina}, Contador: ${eq.contador===Infinity?'sin límite':eq.contador}, Mesero: ${eq.mesero===Infinity?'sin límite':eq.mesero}`;
+  el.innerHTML = `Productos: ${productos} · Kardex: ${l.kardex?'sí':'no'} · Contabilidad: ${l.contabilidad?'sí':'no'} · Promociones: ${l.promociones?'sí':'no'} · Código de vendedor: ${l.codigoVendedor?'sí':'no'}<br>Tienda Online: hasta ${l.tiendaOnlineProductos===Infinity?'ilimitados':l.tiendaOnlineProductos} productos, ${l.tiendaOnlineConFoto===Infinity?'todos':'hasta '+l.tiendaOnlineConFoto} con foto<br>Tiendas: ${l.tiendas===Infinity?'sin límite':l.tiendas} · Historial: ${l.historialMeses===Infinity?'completo':'últimos '+l.historialMeses+' meses'} · Excel: ${l.excelCompleto?'completo':'solo resumen'}<br>Equipo — ${equipoTxt}`;
 }
 function actualizarLinkTiendaOnline(){
   const wrap = document.getElementById('tienda-online-link-wrap');
@@ -4165,16 +4232,19 @@ async function agregarProducto(){
 function renderTiendaOnline(){
   const el = document.getElementById('lista-tienda-online');
   if(!el) return;
-  const permiteFotos = limitesDelPlan().fotosTienda;
+  const l = limitesDelPlan();
   const items = [
     ...state.inventario.filter(p=>!p.grupoNombre || true).map(p=>({tipo:'producto', ref:p})),
     ...state.combos.filter(c=>c.activo).map(c=>({tipo:'combo', ref:c}))
   ];
   if(!items.length){ el.innerHTML = '<p class="empty">Todavía no tenés productos ni combos.</p>'; return; }
-  el.innerHTML = (permiteFotos ? '' : `<p class="hint" style="color:var(--rust);">Tu plan actual (${limitesDelPlan().nombre}) no incluye fotos en la Tienda Online — tus productos se muestran solo con nombre, descripción y precio.</p>`) + items.map(({tipo, ref})=>{
+  const conFotoActuales = [...state.inventario, ...state.combos].filter(x=>x.imagenUrl).length;
+  const mostrandoEnTienda = [...state.inventario, ...state.combos].filter(x=>x.mostrarTiendaOnline).length;
+  el.innerHTML = `<p class="hint">Tu plan (${l.nombre}): hasta ${l.tiendaOnlineProductos===Infinity?'ilimitados':l.tiendaOnlineProductos} productos en la Tienda Online (llevás ${mostrandoEnTienda}), ${l.tiendaOnlineConFoto===Infinity?'todos':'hasta '+l.tiendaOnlineConFoto} con foto (llevás ${conFotoActuales}).</p>` + items.map(({tipo, ref})=>{
     const nombre = tipo==='producto' ? ref.producto : ref.nombre;
     const inputId = `tienda-img-${tipo}-${ref.id}`;
     const selCatId = `tienda-cat-${tipo}-${ref.id}`;
+    const permiteFotoEsta = ref.imagenUrl || conFotoActuales < l.tiendaOnlineConFoto;
     return `<div class="mini-card" style="cursor:default;">
       <div class="mc-row" style="align-items:center;">
         <div style="display:flex;align-items:center;gap:10px;min-width:0;">
@@ -4190,7 +4260,7 @@ function renderTiendaOnline(){
           <label class="check-line" style="font-size:12px;"><input type="checkbox" ${ref.mostrarTiendaOnline?'checked':''} onchange="toggleVisibilidadTienda('${tipo}',${ref.id},'mostrarTiendaOnline', this.checked)"> Tienda Online</label>
           <div class="actions-icons">
             <input type="file" id="${inputId}" accept="image/*" style="display:none;" onchange="subirFotoTienda('${tipo}',${ref.id}, this)">
-            <button class="btn-icon" title="${permiteFotos ? (ref.imagenUrl?'Cambiar foto':'Agregar foto') : 'Tu plan no incluye fotos'}" ${permiteFotos?'':'style="opacity:0.4;"'} onclick="${permiteFotos?`document.getElementById('${inputId}').click()`:`mostrarAlerta('Tu plan (${limitesDelPlan().nombre}) no incluye fotos en la Tienda Online.')`}">${ICONO_CAJA}</button>
+            <button class="btn-icon" title="${permiteFotoEsta ? (ref.imagenUrl?'Cambiar foto':'Agregar foto') : 'Llegaste al límite de fotos de tu plan'}" ${permiteFotoEsta?'':'style="opacity:0.4;"'} onclick="${permiteFotoEsta?`document.getElementById('${inputId}').click()`:`mostrarAlerta('Tu plan (${l.nombre}) permite fotos en hasta ${l.tiendaOnlineConFoto} productos — ya llegaste a ese límite.')`}">${ICONO_CAJA}</button>
             <button class="btn-icon" title="Descripción" onclick="editarDescripcionTienda('${tipo}',${ref.id})">${ICONO_LAPIZ}</button>
           </div>
         </div>
@@ -4222,6 +4292,15 @@ function toggleVisibilidadTienda(tipo, id, campo, valor){
   const lista = tipo==='producto' ? state.inventario : state.combos;
   const item = lista.find(x=>x.id===id);
   if(!item) return;
+  if(campo==='mostrarTiendaOnline' && valor){
+    const l = limitesDelPlan();
+    const actuales = [...state.inventario, ...state.combos].filter(x=>x.mostrarTiendaOnline).length;
+    if(actuales >= l.tiendaOnlineProductos){
+      mostrarAlerta(`Tu plan (${l.nombre}) permite hasta ${l.tiendaOnlineProductos} productos en la Tienda Online. Ya llegaste a ese límite — desmarcá otro o subí de plan.`);
+      renderTiendaOnline();
+      return;
+    }
+  }
   item[campo] = valor;
   guardar();
   if(campo==='mostrarVendedores') renderMenuRapido();
@@ -4237,14 +4316,23 @@ function cambiarCategoriaMenuItem(tipo, id, valor){
 async function subirFotoTienda(tipo, id, inputEl){
   const archivo = inputEl.files[0];
   if(!archivo) return;
-  if(!limitesDelPlan().fotosTienda){
-    inputEl.value = '';
-    mostrarAlerta(`Tu plan (${limitesDelPlan().nombre}) no incluye fotos en la Tienda Online. Tus productos se muestran solo con nombre, descripción y precio — subí de plan para agregar fotos.`);
-    return;
-  }
+  const l = limitesDelPlan();
   const lista = tipo==='producto' ? state.inventario : state.combos;
   const item = lista.find(x=>x.id===id);
   if(!item) return;
+  if(archivo.size > PESO_MAX_IMAGEN_MB * 1024 * 1024){
+    inputEl.value = '';
+    mostrarAlerta(`Esa foto pesa más de ${PESO_MAX_IMAGEN_MB} MB. Comprimila o elegí una más liviana e intentá de nuevo.`);
+    return;
+  }
+  if(!item.imagenUrl){
+    const conFotoActuales = [...state.inventario, ...state.combos].filter(x=>x.imagenUrl).length;
+    if(conFotoActuales >= l.tiendaOnlineConFoto){
+      inputEl.value = '';
+      mostrarAlerta(`Tu plan (${l.nombre}) permite fotos en hasta ${l.tiendaOnlineConFoto} productos. Ya llegaste a ese límite — subí de plan para agregar más.`);
+      return;
+    }
+  }
   try{
     item.imagenUrl = await window.fb.subirImagenProducto(currentTiendaId, item.codigo, archivo);
     guardar(); render();
