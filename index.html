@@ -333,6 +333,12 @@
   #escaparate-publico .wrap{ max-width:1100px; }
   #esc-nombre-tienda{ font-weight:900; letter-spacing:-0.02em; }
   #esc-productos{ padding-bottom:90px; }
+  .esc-productos-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(100px,1fr)); justify-content:center; gap:12px; margin-top:20px; }
+  @media (min-width: 640px){
+    .esc-productos-grid{ grid-template-columns:repeat(auto-fit,minmax(160px,200px)); gap:16px; }
+    .esc-card-footer{ flex-direction:row; align-items:center; justify-content:space-between; }
+    .esc-card-footer button{ width:auto; padding:8px 14px; font-size:13px; }
+  }
   .esc-card{ background:var(--surface-container); border-radius:var(--radius-lg); overflow:hidden; box-shadow:var(--elev-1); transition:box-shadow 0.2s, transform 0.2s; display:flex; flex-direction:column; }
   .esc-card:hover{ box-shadow:var(--elev-2); transform:translateY(-2px); }
   .esc-card-img{ width:100%; aspect-ratio:1; object-fit:cover; display:block; }
@@ -340,9 +346,9 @@
   .esc-card-body{ padding:12px 14px 14px; display:flex; flex-direction:column; gap:4px; flex:1; }
   .esc-card-nombre{ margin:0; font-weight:800; font-size:0.98rem; }
   .esc-card-desc{ margin:0; font-size:12px; color:var(--on-surface-variant); line-height:1.35; }
-  .esc-card-footer{ margin-top:auto; padding-top:8px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .esc-card-footer{ margin-top:auto; padding-top:8px; display:flex; flex-direction:column; align-items:stretch; gap:6px; }
   .esc-card-precio{ font-weight:900; font-size:1.05rem; color:var(--primary); }
-  .esc-card-footer button{ padding:8px 14px; min-height:auto; font-size:13px; border-radius:var(--radius-full); }
+  .esc-card-footer button{ padding:8px 10px; min-height:auto; font-size:12px; border-radius:var(--radius-full); width:100%; }
   #esc-carrito-flotante button{ box-shadow:var(--elev-2); font-weight:800; padding:14px 28px; border-radius:var(--radius-full); }
   .esc-red-btn{ width:38px; height:38px; border-radius:50%; background:var(--surface); color:var(--primary); display:flex; align-items:center; justify-content:center; box-shadow:var(--elev-1); }
   .esc-red-btn:hover{ background:var(--primary-container); }
@@ -1051,6 +1057,21 @@
   </div>
 
   <div class="panel" id="panel-config">
+    <div class="accordion propietario-only" id="acc-plan" style="display:none;">
+      <div class="accordion-head" onclick="toggleAccordion('acc-plan')"><span>Plan de tu tienda</span><span class="chev">▾</span></div>
+      <div class="accordion-body">
+        <p class="hint">Todavía no hay cobro automático — este selector es para vos, tanto para probar los límites como para activarle un plan a un cliente real cuando te pague.</p>
+        <div class="field-group">
+          <select id="c-plan" onchange="guardarConfig()">
+            <option value="gratis">Gratis</option>
+            <option value="starter">Starter</option>
+            <option value="medio">Medio</option>
+            <option value="beast">Beast</option>
+          </select>
+        </div>
+        <p class="hint" id="c-plan-detalle"></p>
+      </div>
+    </div>
     <div class="accordion" id="acc-rubro">
       <div class="accordion-head" onclick="toggleAccordion('acc-rubro')"><span>Rubro de tu negocio</span><span class="chev">▾</span></div>
       <div class="accordion-body">
@@ -1368,6 +1389,7 @@ function normalizarEstado(){
   state.gastos.forEach(g=>{ if(g.montoImpuesto===undefined){ g.montoImpuesto=0; g.categoriaFiscal=null; g.tipoFiscalNombre=''; } });
   if(state.config.cobroCocina===undefined) state.config.cobroCocina = 'despues';
   if(state.config.moduloCocina===undefined) state.config.moduloCocina = false;
+  if(state.config.plan===undefined) state.config.plan = 'gratis';
   state.calculosCosto = state.calculosCosto || [];
   state.combos.forEach(c=>{ if(c.activo===undefined) c.activo=true; if(c.qr===undefined) c.qr=false; c.componentes.forEach(comp=>{ if(comp.tipo===undefined) comp.tipo='producto'; }); });
   if(state.config.sugerenciaEmpaque===undefined) state.config.sugerenciaEmpaque = false;
@@ -1407,7 +1429,7 @@ function estadoVacioBase(){
     calculosCosto: [], ajustesInventario: [], pedidosCocina: [], mesas: [], eliminacionesVentas: [],
     codigosVendedor: [],
     cotizaciones: [],
-    config: { tasa: 13, moneda: '$', sugerenciaEmpaque:false, moduloCocina:false, cobroCocina:'despues', meseroPuedeCobrar:false, formatoTicket:'carta', formatoEtiquetaQR:'grande', tiendaOnlineActiva:false, whatsappTienda:'' }
+    config: { tasa: 13, moneda: '$', sugerenciaEmpaque:false, moduloCocina:false, cobroCocina:'despues', meseroPuedeCobrar:false, formatoTicket:'carta', formatoEtiquetaQR:'grande', tiendaOnlineActiva:false, whatsappTienda:'', plan:'gratis' }
   };
 }
 async function cargarDatosTienda(){
@@ -1467,6 +1489,8 @@ async function cargarDatosTienda(){
   if(document.getElementById('c-red-facebook')) document.getElementById('c-red-facebook').value = state.config.redFacebook || '';
   if(document.getElementById('c-red-instagram')) document.getElementById('c-red-instagram').value = state.config.redInstagram || '';
   if(document.getElementById('c-red-tiktok')) document.getElementById('c-red-tiktok').value = state.config.redTiktok || '';
+  if(document.getElementById('c-plan')) document.getElementById('c-plan').value = state.config.plan || 'gratis';
+  actualizarDetallePlan();
   actualizarLinkTiendaOnline();
   if(document.getElementById('c-rubro') && state.config.rubro){
     const opciones = ['ropa','restaurante','ferreteria','farmacia','abarrotes','papeleria','belleza','servicios'];
@@ -1519,6 +1543,15 @@ async function guardar(){
 }
 function fmt(n){ return state.config.moneda + Number(n||0).toFixed(2); }
 const ETIQUETA_UNIDAD = { unidad:'u', kg:'kg', g:'g', lb:'lb', oz:'oz', l:'l', ml:'ml' };
+const LIMITES_PLAN = {
+  gratis:  { nombre:'Gratis',  productos:50,      equipo:0,        tiendaOnline:false, cadenas:false },
+  starter: { nombre:'Starter', productos:Infinity, equipo:3,        tiendaOnline:false, cadenas:false },
+  medio:   { nombre:'Medio',   productos:Infinity, equipo:5,        tiendaOnline:false, cadenas:true  },
+  beast:   { nombre:'Beast',   productos:Infinity, equipo:Infinity, tiendaOnline:true,  cadenas:true  }
+};
+function limitesDelPlan(){
+  return LIMITES_PLAN[state.config.plan] || LIMITES_PLAN.gratis;
+}
 const CATEGORIAS_POR_RUBRO = {
   ropa: ['Camisas','Pantalones','Vestidos','Calzado','Ropa interior','Accesorios'],
   restaurante: ['Entradas','Platillos principales','Bebidas','Postres','Combos y recetas'],
@@ -2147,6 +2180,12 @@ if(tiendaEscaparateParam){
 }
 
 async function crearVendedorUI(){
+  const limites = limitesDelPlan();
+  const equipoActual = (window._equipoTemp||[]).filter(v=>v.rol!=='eliminado').length;
+  if(equipoActual >= limites.equipo){
+    document.getElementById('ve-error').textContent = `Tu plan (${limites.nombre}) permite hasta ${limites.equipo} personas en el equipo. Para agregar más, necesitás subir de plan.`;
+    return;
+  }
   const nombre = document.getElementById('ve-nombre').value.trim();
   const email = document.getElementById('ve-email').value.trim();
   const pass = document.getElementById('ve-pass').value;
@@ -2544,6 +2583,7 @@ function cambiarPais(){
   if(tasas[pais] !== undefined){ document.getElementById('c-tasa').value = tasas[pais]; guardarConfig(); }
 }
 function guardarConfig(){
+  state.config.plan = document.getElementById('c-plan').value;
   state.config.tasa = parseFloat(document.getElementById('c-tasa').value) || 0;
   state.config.moneda = document.getElementById('c-moneda').value || '$';
   state.config.sugerenciaEmpaque = document.getElementById('c-sugerencia-empaque').checked;
@@ -2552,12 +2592,28 @@ function guardarConfig(){
   state.config.meseroPuedeCobrar = document.getElementById('c-mesero-cobra').checked;
   state.config.formatoTicket = document.getElementById('c-formato-ticket').value;
   state.config.formatoEtiquetaQR = document.getElementById('c-formato-etiqueta').value;
-  state.config.tiendaOnlineActiva = document.getElementById('c-tienda-online-activa').checked;
+  const limites = limitesDelPlan();
+  const quiereActivarla = document.getElementById('c-tienda-online-activa').checked;
+  if(quiereActivarla && !limites.tiendaOnline){
+    document.getElementById('c-tienda-online-activa').checked = false;
+    mostrarAlerta(`Tu plan (${limites.nombre}) no incluye la Tienda Online. Necesitás subir de plan para activarla.`);
+    state.config.tiendaOnlineActiva = false;
+  } else {
+    state.config.tiendaOnlineActiva = quiereActivarla;
+  }
   state.config.whatsappTienda = document.getElementById('c-whatsapp-tienda').value.trim();
   state.config.redFacebook = document.getElementById('c-red-facebook').value.trim();
   state.config.redInstagram = document.getElementById('c-red-instagram').value.trim();
   state.config.redTiktok = document.getElementById('c-red-tiktok').value.trim();
-  guardar(); render(); aplicarVisibilidadCocina(); actualizarLinkTiendaOnline();
+  guardar(); render(); aplicarVisibilidadCocina(); actualizarLinkTiendaOnline(); actualizarDetallePlan();
+}
+function actualizarDetallePlan(){
+  const el = document.getElementById('c-plan-detalle');
+  if(!el) return;
+  const l = limitesDelPlan();
+  const equipo = l.equipo===Infinity ? 'sin límite' : `hasta ${l.equipo}`;
+  const productos = l.productos===Infinity ? 'sin límite' : `hasta ${l.productos}`;
+  el.textContent = `Incluye: ${productos} de productos · equipo ${equipo} · Tienda Online: ${l.tiendaOnline?'sí':'no'} · Cadenas: ${l.cadenas?'sí':'no'}`;
 }
 function actualizarLinkTiendaOnline(){
   const wrap = document.getElementById('tienda-online-link-wrap');
@@ -3106,6 +3162,7 @@ function renderMenuRapido(){
   const chips = categorias.map(cat=>`<button class="${categoriaMenuSeleccionada===cat?'mini':'btn-tool'}" style="min-height:34px;padding:6px 14px;" onclick="seleccionarCategoriaMenu('${cat.replace(/'/g,"\\'")}')" type="button">${cat}</button>`).join(' ');
   const mostrar = categoriaMenuSeleccionada ? itemsMenu.filter(it=>it.categoriaMenu===categoriaMenuSeleccionada) : itemsMenu;
   const tarjetas = mostrar.map(it=>`<div class="mini-card" onclick="agregarItemDesdeMenuRapido('${it.tipo}','${it.codigo}')" style="text-align:center;">
+      ${it.imagenUrl ? `<img src="${it.imagenUrl}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;margin-bottom:6px;">` : ''}
       <p class="mc-title">${it.nombre}</p>
       <p class="mc-price" style="margin:4px 0 0;">${fmt(it.precioVenta)}</p>
     </div>`).join('');
@@ -3986,6 +4043,11 @@ function onModoConsumoChange(){
   document.getElementById('i-campo-multiplicador').style.display = modo==='porUnidad' ? 'flex' : 'none';
 }
 async function agregarProducto(){
+  const limites = limitesDelPlan();
+  if(state.inventario.length >= limites.productos){
+    mostrarAlerta(`Tu plan (${limites.nombre}) permite hasta ${limites.productos} productos. Para agregar más, necesitás subir de plan.`);
+    return;
+  }
   const producto = document.getElementById('i-producto').value.trim().toUpperCase();
   const categoria = leerCategoriaSeleccionada('i-categoria','i-categoria-otro');
   const codigoBarra = document.getElementById('i-codigo-barra').value.trim().toUpperCase();
@@ -5283,7 +5345,7 @@ function limpiarFiltroInventario(){
     <div id="esc-redes" style="display:flex;justify-content:center;gap:10px;margin-top:14px;"></div>
   </div>
   <div class="wrap">
-    <div id="esc-productos" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,200px));justify-content:center;gap:16px;margin-top:20px;"></div>
+    <div id="esc-productos" class="esc-productos-grid"></div>
   </div>
   <div id="esc-carrito-flotante" style="display:none;position:fixed;bottom:20px;left:0;right:0;text-align:center;z-index:60;">
     <button onclick="abrirCarritoEscaparate()">Ver mi pedido (<span id="esc-carrito-count">0</span>)</button>
