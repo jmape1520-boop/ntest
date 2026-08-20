@@ -1062,17 +1062,10 @@
 
   <div class="panel" id="panel-config">
     <div class="accordion propietario-only" id="acc-plan" style="display:none;">
-      <div class="accordion-head" onclick="toggleAccordion('acc-plan')"><span>Plan de tu tienda</span><span class="chev">▾</span></div>
+      <div class="accordion-head" onclick="toggleAccordion('acc-plan')"><span>Tu plan</span><span class="chev">▾</span></div>
       <div class="accordion-body">
-        <p class="hint">Todavía no hay cobro automático — este selector es para vos, tanto para probar los límites como para activarle un plan a un cliente real cuando te pague.</p>
-        <div class="field-group">
-          <select id="c-plan" onchange="guardarConfig()">
-            <option value="gratis">Gratis</option>
-            <option value="starter">Starter</option>
-            <option value="medio">Medio</option>
-            <option value="beast">Beast</option>
-          </select>
-        </div>
+        <p class="hint">Tu plan lo activa el equipo de MAQUI cuando confirma tu pago — no se cambia desde acá.</p>
+        <p style="font-weight:800;font-size:1.1rem;margin:0;" id="c-plan-nombre">—</p>
         <p class="hint" id="c-plan-detalle"></p>
       </div>
     </div>
@@ -1494,7 +1487,6 @@ async function cargarDatosTienda(){
   if(document.getElementById('c-red-facebook')) document.getElementById('c-red-facebook').value = state.config.redFacebook || '';
   if(document.getElementById('c-red-instagram')) document.getElementById('c-red-instagram').value = state.config.redInstagram || '';
   if(document.getElementById('c-red-tiktok')) document.getElementById('c-red-tiktok').value = state.config.redTiktok || '';
-  if(document.getElementById('c-plan')) document.getElementById('c-plan').value = state.config.plan || 'gratis';
   actualizarDetallePlan();
   actualizarLinkTiendaOnline();
   if(document.getElementById('c-rubro') && state.config.rubro){
@@ -2003,9 +1995,35 @@ function arrancarEscuchaSesion(){
 }
 async function renderPanelAdmin(){
   const el = document.getElementById('admin-lista-tiendas');
+  const statsEl = document.getElementById('admin-stats');
   el.innerHTML = '<p class="hint">Cargando...</p>';
   const tiendas = await window.fb.listarTodasLasTiendas();
-  if(!tiendas.length){ el.innerHTML = '<p class="empty">Todavía no hay tiendas creadas.</p>'; return; }
+  if(!tiendas.length){ el.innerHTML = '<p class="empty">Todavía no hay tiendas creadas.</p>'; statsEl.innerHTML = ''; return; }
+
+  const ahora = new Date();
+  const hace7dias = new Date(ahora.getTime() - 7*24*60*60*1000);
+  const hace30dias = new Date(ahora.getTime() - 30*24*60*60*1000);
+  const porPlan = { gratis:0, starter:0, medio:0, beast:0 };
+  let nuevasSemana = 0, nuevasMes = 0;
+  tiendas.forEach(t=>{
+    const plan = t.plan || 'gratis';
+    if(porPlan[plan]!==undefined) porPlan[plan]++;
+    if(t.creada){
+      const fecha = new Date(t.creada);
+      if(fecha >= hace7dias) nuevasSemana++;
+      if(fecha >= hace30dias) nuevasMes++;
+    }
+  });
+  statsEl.innerHTML = `
+    <div class="metric"><div class="lbl">Tiendas totales</div><div class="val">${tiendas.length}</div></div>
+    <div class="metric"><div class="lbl">Nuevas esta semana</div><div class="val">${nuevasSemana}</div></div>
+    <div class="metric"><div class="lbl">Nuevas este mes</div><div class="val">${nuevasMes}</div></div>
+    <div class="metric"><div class="lbl">Gratis</div><div class="val">${porPlan.gratis}</div></div>
+    <div class="metric"><div class="lbl">Starter</div><div class="val">${porPlan.starter}</div></div>
+    <div class="metric"><div class="lbl">Medio</div><div class="val">${porPlan.medio}</div></div>
+    <div class="metric"><div class="lbl">Beast</div><div class="val">${porPlan.beast}</div></div>
+  `;
+
   const tiendasConDueno = await Promise.all(tiendas.map(async t=>{
     const dueno = t.propietarioUid ? await window.fb.leerUsuario(t.propietarioUid) : null;
     return { ...t, dueno };
@@ -2645,8 +2663,6 @@ function cambiarPais(){
   if(tasas[pais] !== undefined){ document.getElementById('c-tasa').value = tasas[pais]; guardarConfig(); }
 }
 function guardarConfig(){
-  state.config.plan = document.getElementById('c-plan').value;
-  window.fb.actualizarTienda(currentTiendaId, { plan: state.config.plan }).catch(e=>console.error(e));
   state.config.tasa = parseFloat(document.getElementById('c-tasa').value) || 0;
   state.config.moneda = document.getElementById('c-moneda').value || '$';
   state.config.sugerenciaEmpaque = document.getElementById('c-sugerencia-empaque').checked;
@@ -2672,11 +2688,13 @@ function guardarConfig(){
 }
 function actualizarDetallePlan(){
   const el = document.getElementById('c-plan-detalle');
-  if(!el) return;
+  const nombreEl = document.getElementById('c-plan-nombre');
+  if(!el || !nombreEl) return;
   const l = limitesDelPlan();
+  nombreEl.textContent = l.nombre;
   const equipo = l.equipo===Infinity ? 'sin límite' : `hasta ${l.equipo}`;
   const productos = l.productos===Infinity ? 'sin límite' : `hasta ${l.productos}`;
-  el.textContent = `Incluye: ${productos} de productos · equipo ${equipo} · Tienda Online: ${l.tiendaOnline?'sí':'no'} · Cadenas: ${l.cadenas?'sí':'no'}`;
+  el.textContent = `Incluye: ${productos} de productos · equipo ${equipo} · Tienda Online: ${l.tiendaOnline?'sí':'no'} · Fotos: ${l.fotosTienda?'sí':'no'} · Cadenas: ${l.cadenas?'sí':'no'}`;
 }
 function actualizarLinkTiendaOnline(){
   const wrap = document.getElementById('tienda-online-link-wrap');
@@ -5414,6 +5432,7 @@ function limpiarFiltroInventario(){
       <button class="secondary" onclick="hacerLogout()" type="button">Cerrar sesión</button>
     </div>
     <p class="hint">Todas las tiendas del sistema. Cambiá el plan de cualquiera y guardá.</p>
+    <div id="admin-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:16px 0;"></div>
     <div id="admin-lista-tiendas" style="margin-top:20px;"></div>
   </div>
 </div>
