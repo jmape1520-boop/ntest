@@ -2006,11 +2006,17 @@ async function renderPanelAdmin(){
   el.innerHTML = '<p class="hint">Cargando...</p>';
   const tiendas = await window.fb.listarTodasLasTiendas();
   if(!tiendas.length){ el.innerHTML = '<p class="empty">Todavía no hay tiendas creadas.</p>'; return; }
-  el.innerHTML = tiendas.map(t=>{
+  const tiendasConDueno = await Promise.all(tiendas.map(async t=>{
+    const dueno = t.propietarioUid ? await window.fb.leerUsuario(t.propietarioUid) : null;
+    return { ...t, dueno };
+  }));
+  el.innerHTML = tiendasConDueno.map(t=>{
     const selId = `admin-plan-${t.id}`;
+    const d = t.dueno;
     return `<div class="card">
       <p style="margin:0 0 4px;font-weight:800;">${t.nombre || t.id}</p>
-      <p class="hint" style="margin:0 0 10px;">ID: ${t.id} · Creada: ${t.creada ? t.creada.slice(0,10) : '—'} · Rubro: ${t.rubro || '—'}</p>
+      <p class="hint" style="margin:0 0 4px;">ID: ${t.id} · Creada: ${t.creada ? t.creada.slice(0,10) : '—'} · Rubro: ${t.rubro || '—'} · País: ${t.pais || '—'}</p>
+      ${d ? `<p class="hint" style="margin:0 0 10px;">Dueño: <b style="color:var(--on-surface);">${d.nombre||'—'}</b> · ${d.email||'—'}${d.telefono?' · '+d.telefono:''}</p>` : `<p class="hint" style="margin:0 0 10px;color:var(--rust);">No se encontró la cuenta del dueño.</p>`}
       <div class="row">
         <select id="${selId}">
           <option value="gratis" ${(!t.plan || t.plan==='gratis')?'selected':''}>Gratis</option>
@@ -5403,7 +5409,10 @@ function limpiarFiltroInventario(){
 </div>
 <div id="panel-admin-maestro" style="display:none;">
   <div class="wrap">
-    <h1 style="margin:24px 0 4px;">Panel Admin</h1>
+    <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:nowrap;">
+      <h1 style="margin:24px 0 4px;">Panel Admin</h1>
+      <button class="secondary" onclick="hacerLogout()" type="button">Cerrar sesión</button>
+    </div>
     <p class="hint">Todas las tiendas del sistema. Cambiá el plan de cualquiera y guardá.</p>
     <div id="admin-lista-tiendas" style="margin-top:20px;"></div>
   </div>
