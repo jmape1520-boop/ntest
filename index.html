@@ -2104,8 +2104,7 @@ async function renderPanelAdmin(){
         <select id="${selId}">
           <option value="gratis" ${(!t.plan || t.plan==='gratis')?'selected':''}>Gratis</option>
           <option value="starter" ${t.plan==='starter'?'selected':''}>Starter</option>
-          <option value="medio" ${t.plan==='medio'?'selected':''}>Medio</option>
-          <option value="beast" ${t.plan==='beast'?'selected':''}>Beast</option>
+          <option value="premium" ${t.plan==='premium'?'selected':''}>Premium</option>
         </select>
         <button class="mini" onclick="guardarPlanAdmin('${t.id}')">Guardar</button>
       </div>
@@ -2466,8 +2465,13 @@ function guardarCodigoVendedorPara(uid){
 async function crearTiendaUI(){
   const nombre = document.getElementById('nt-nombre').value.trim();
   if(!nombre) return;
+  const l = limitesDelPlan();
+  if(currentTiendas.length >= l.tiendas){
+    mostrarAlerta(`Tu plan (${l.nombre}) permite hasta ${l.tiendas===1?'1 tienda':l.tiendas+' tiendas'}. Subí de plan para crear más.`);
+    return;
+  }
   const tiendaId = await generarTiendaIdUnico(nombre);
-  await window.fb.crearTienda(tiendaId, { nombre, propietarioUid: currentUid, creada: new Date().toISOString() });
+  await window.fb.crearTienda(tiendaId, { nombre, propietarioUid: currentUid, creada: new Date().toISOString(), plan: 'gratis' });
   currentTiendas.push(tiendaId);
   await window.fb.guardarUsuario(currentUid, { tiendas: currentTiendas });
   document.getElementById('nt-nombre').value = '';
@@ -2758,10 +2762,9 @@ function actualizarDetallePlan(){
   if(!el || !nombreEl) return;
   const l = limitesDelPlan();
   nombreEl.textContent = l.nombre;
-  const productos = l.productos===Infinity ? 'sin límite' : `hasta ${l.productos}`;
-  const eq = l.equipo;
-  const equipoTxt = `Vendedor: ${eq.vendedor===Infinity?'sin límite':eq.vendedor}, Cocina: ${eq.cocina===Infinity?'sin límite':eq.cocina}, Contador: ${eq.contador===Infinity?'sin límite':eq.contador}, Mesero: ${eq.mesero===Infinity?'sin límite':eq.mesero}`;
-  el.innerHTML = `Productos: ${productos} · Kardex: ${l.kardex?'sí':'no'} · Contabilidad: ${l.contabilidad?'sí':'no'} · Promociones: ${l.promociones?'sí':'no'} · Código de vendedor: ${l.codigoVendedor?'sí':'no'}<br>Tienda Online: hasta ${l.tiendaOnlineProductos===Infinity?'ilimitados':l.tiendaOnlineProductos} productos, ${l.tiendaOnlineConFoto===Infinity?'todos':'hasta '+l.tiendaOnlineConFoto} con foto<br>Tiendas: ${l.tiendas===Infinity?'sin límite':l.tiendas} · Historial: ${l.historialMeses===Infinity?'completo':'últimos '+l.historialMeses+' meses'} · Excel: ${l.excelCompleto?'completo':'solo resumen'}<br>Equipo — ${equipoTxt}`;
+  const productos = l.productos===Infinity ? 'productos ilimitados' : `hasta ${l.productos} productos`;
+  const tiendas = l.tiendas===Infinity ? 'tiendas ilimitadas' : (l.tiendas===1 ? '1 tienda' : `hasta ${l.tiendas} tiendas`);
+  el.textContent = `${productos} · ${tiendas} · Tienda Online incluida`;
 }
 function actualizarLinkTiendaOnline(){
   const wrap = document.getElementById('tienda-online-link-wrap');
@@ -2938,6 +2941,15 @@ function renderCarritoCotizacion(){
 }
 function guardarCotizacion(){
   if(!carritoCotizacion.length){ mostrarAlerta('Agregá al menos un producto a la cotización.'); return; }
+  const l = limitesDelPlan();
+  if(l.cotizacionesPorMes !== Infinity){
+    const mesActual = new Date().toISOString().slice(0,7);
+    const esteMes = state.cotizaciones.filter(c=>c.fecha.slice(0,7)===mesActual).length;
+    if(esteMes >= l.cotizacionesPorMes){
+      mostrarAlerta(`Tu plan (${l.nombre}) permite hasta ${l.cotizacionesPorMes} cotizaciones por mes, y ya las usaste todas este mes. Subí de plan para hacer más.`);
+      return;
+    }
+  }
   const cliente = document.getElementById('cot-cliente').value.trim();
   if(!cliente){ mostrarAlerta('Metele el nombre del cliente.'); return; }
   const telefono = document.getElementById('cot-telefono').value.trim();
@@ -4052,7 +4064,23 @@ async function descargarTodosLosQR(){
 }
 
 function exportarExcel(){
+  const l = limitesDelPlan();
   const wb = XLSX.utils.book_new();
+  if(!l.excelCompleto){
+    const totalVentas = state.ventas.reduce((s,v)=>s+v.total,0);
+    const totalCompras = state.compras.reduce((s,c)=>s+c.total,0);
+    const totalGastos = state.gastos.reduce((s,g)=>s+g.monto,0);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
+      {Concepto:'Total Ventas', Monto:Number(totalVentas.toFixed(2))},
+      {Concepto:'Total Compras', Monto:Number(totalCompras.toFixed(2))},
+      {Concepto:'Total Gastos', Monto:Number(totalGastos.toFixed(2))},
+      {Concepto:'', Monto:''},
+      {Concepto:`Tu plan (${l.nombre}) exporta solo resumen — subí de plan para el detalle línea por línea.`, Monto:''}
+    ]), 'Resumen');
+    const fecha = new Date().toISOString().slice(0,10);
+    XLSX.writeFile(wb, `mis-cuentas-resumen-${fecha}.xlsx`);
+    return;
+  }
   const filasVentas = [];
   state.ventas.forEach(v=>{
     v.items.forEach(it=>{
@@ -4846,6 +4874,13 @@ function confirmarCrearCombo(){
     .concat(comboSlots.filter(s=>s.tipo==='grupo' && s.grupoNombre).map(s=>({tipo:'grupo', grupoNombre:s.grupoNombre, cantidad:s.cantidad||1})));
   if(!nombre || precioVenta<=0){ err.textContent = 'Metele nombre y precio de venta válidos.'; return; }
   if(!componentes.length){ err.textContent = 'Elegí al menos un producto o grupo para el combo.'; return; }
+  if(!comboEditandoId){
+    const l = limitesDelPlan();
+    if(state.combos.length >= l.combos){
+      err.textContent = `Tu plan (${l.nombre}) permite hasta ${l.combos} combos. Subí de plan para crear más.`;
+      return;
+    }
+  }
 
   if(comboEditandoId){
     const c = state.combos.find(x=>x.id===comboEditandoId);
@@ -5302,7 +5337,19 @@ function render(){
 
   document.getElementById('vf-bar').style.display = state.ventas.length ? 'flex' : 'none';
   const vd = document.getElementById('vf-desde').value, vh = document.getElementById('vf-hasta').value, vt = (document.getElementById('vf-texto').value||'').toLowerCase();
-  const ventasF = state.ventas.filter(v => enRango(v.fecha,vd,vh) && (!vt || (v.items.map(it=>it.codigo+it.producto).join(' ')+(v.cliente||'')).toLowerCase().includes(vt)));
+  const limiteHistorial = limitesDelPlan().historialMeses;
+  const fechaMinimaHistorial = limiteHistorial===Infinity ? null : new Date(new Date().setMonth(new Date().getMonth() - limiteHistorial)).toISOString().slice(0,10);
+  const ventasF = state.ventas.filter(v => enRango(v.fecha,vd,vh) && (!fechaMinimaHistorial || v.fecha >= fechaMinimaHistorial) && (!vt || (v.items.map(it=>it.codigo+it.producto).join(' ')+(v.cliente||'')).toLowerCase().includes(vt)));
+  if(fechaMinimaHistorial && state.ventas.some(v=>v.fecha < fechaMinimaHistorial)){
+    const avisoId = 'aviso-historial-limitado';
+    if(!document.getElementById(avisoId)){
+      const bar = document.getElementById('vf-bar');
+      if(bar) bar.insertAdjacentHTML('beforebegin', `<p class="hint" id="${avisoId}" style="color:var(--rust);">Tu plan (${limitesDelPlan().nombre}) solo muestra los últimos ${limiteHistorial} meses de ventas. Las anteriores siguen guardadas — con otro plan las volvés a ver todas.</p>`);
+    }
+  } else {
+    const avisoViejo = document.getElementById('aviso-historial-limitado');
+    if(avisoViejo) avisoViejo.remove();
+  }
   document.getElementById('lista-ventas').innerHTML = ventasF.length ? `<div class="desktop-table-wrap"><div class="table-scroll"><table><thead><tr><th>Cód.</th><th>Fecha</th><th>Productos</th><th>Cliente</th><th>Pago</th><th class="num">Desc.</th><th class="num">Base</th><th class="num">Impuesto</th><th class="num">Total</th><th class="center">Envío</th><th class="center">Enviado</th><th></th></tr></thead><tbody>${ventasF.map(v=>{
     const resumenItems = v.items.map(it=>`<span class="code" style="margin-right:2px;">${it.codigo||'—'}</span>${it.cantidad}x ${it.producto}${it.promoAplicada?' '+ICONO_TAG:''}`).join('<br>');
     const nombrePago = {efectivo:'Efectivo',tarjeta:'Tarjeta',transferencia:'Transferencia',pagare:'Pagaré',fiado:'Fiado'}[v.metodoPago] || v.metodoPago;
