@@ -59,6 +59,10 @@
 
     crearTienda: async (tiendaId, datos) => setDoc(doc(db, 'tiendas', tiendaId), datos),
     actualizarTienda: async (tiendaId, datos) => setDoc(doc(db, 'tiendas', tiendaId), datos, { merge: true }),
+    listarTodasLasTiendas: async () => {
+      const snap = await getDocs(collection(db, 'tiendas'));
+      return snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    },
     crearCadena: async (cadenaId, datos) => setDoc(doc(db, 'cadenas', cadenaId), datos),
     actualizarCadena: async (cadenaId, datos) => setDoc(doc(db, 'cadenas', cadenaId), datos, { merge: true }),
     leerCadena: async (cadenaId) => {
@@ -1390,6 +1394,7 @@ function normalizarEstado(){
   if(state.config.cobroCocina===undefined) state.config.cobroCocina = 'despues';
   if(state.config.moduloCocina===undefined) state.config.moduloCocina = false;
   if(state.config.plan===undefined) state.config.plan = 'gratis';
+  aplicarLimitesPlan();
   state.calculosCosto = state.calculosCosto || [];
   state.combos.forEach(c=>{ if(c.activo===undefined) c.activo=true; if(c.qr===undefined) c.qr=false; c.componentes.forEach(comp=>{ if(comp.tipo===undefined) comp.tipo='producto'; }); });
   if(state.config.sugerenciaEmpaque===undefined) state.config.sugerenciaEmpaque = false;
@@ -1453,10 +1458,9 @@ async function cargarDatosTienda(){
       if(raw) state = JSON.parse(raw);
       else state = estadoVacioBase();
     }
-    if(!state.config.rubro){
-      const tiendaInfo = await window.fb.leerTienda(currentTiendaId);
-      if(tiendaInfo && tiendaInfo.rubro) state.config.rubro = tiendaInfo.rubro;
-    }
+    const tiendaInfo = await window.fb.leerTienda(currentTiendaId);
+    if(!state.config.rubro && tiendaInfo && tiendaInfo.rubro) state.config.rubro = tiendaInfo.rubro;
+    if(tiendaInfo && tiendaInfo.plan) state.config.plan = tiendaInfo.plan;
     if(currentRol === 'cocina' || currentRol === 'mesero' || currentRol === 'propietario' || currentRol === 'vendedor' || currentRol === 'contador'){
       const rawPedidos = await window.fb.leerPedidosTienda(currentTiendaId);
       if(rawPedidos){
@@ -1475,6 +1479,7 @@ async function cargarDatosTienda(){
     }
   }catch(e){ console.error(e); }
   normalizarEstado();
+  if(aplicarLimitesPlan()) guardar();
   if(document.getElementById('c-tasa')) document.getElementById('c-tasa').value = state.config.tasa;
   if(document.getElementById('c-moneda')) document.getElementById('c-moneda').value = state.config.moneda;
   renderCodigosVendedorConfig();
@@ -1544,13 +1549,22 @@ async function guardar(){
 function fmt(n){ return state.config.moneda + Number(n||0).toFixed(2); }
 const ETIQUETA_UNIDAD = { unidad:'u', kg:'kg', g:'g', lb:'lb', oz:'oz', l:'l', ml:'ml' };
 const LIMITES_PLAN = {
-  gratis:  { nombre:'Gratis',  productos:50,      equipo:0,        tiendaOnline:false, cadenas:false },
-  starter: { nombre:'Starter', productos:Infinity, equipo:3,        tiendaOnline:false, cadenas:false },
-  medio:   { nombre:'Medio',   productos:Infinity, equipo:5,        tiendaOnline:false, cadenas:true  },
-  beast:   { nombre:'Beast',   productos:Infinity, equipo:Infinity, tiendaOnline:true,  cadenas:true  }
+  gratis:  { nombre:'Gratis',  productos:50,      equipo:0,        tiendaOnline:true, fotosTienda:false, cadenas:false },
+  starter: { nombre:'Starter', productos:Infinity, equipo:3,        tiendaOnline:true, fotosTienda:true,  cadenas:false },
+  medio:   { nombre:'Medio',   productos:Infinity, equipo:5,        tiendaOnline:true, fotosTienda:true,  cadenas:true  },
+  beast:   { nombre:'Beast',   productos:Infinity, equipo:Infinity, tiendaOnline:true, fotosTienda:true,  cadenas:true  }
 };
 function limitesDelPlan(){
   return LIMITES_PLAN[state.config.plan] || LIMITES_PLAN.gratis;
+}
+function aplicarLimitesPlan(){
+  const l = limitesDelPlan();
+  let corrigioAlgo = false;
+  if(state.config.tiendaOnlineActiva && !l.tiendaOnline){
+    state.config.tiendaOnlineActiva = false;
+    corrigioAlgo = true;
+  }
+  return corrigioAlgo;
 }
 const CATEGORIAS_POR_RUBRO = {
   ropa: ['Camisas','Pantalones','Vestidos','Calzado','Ropa interior','Accesorios'],
@@ -1824,7 +1838,7 @@ async function generarTiendaIdUnico(nombre){
 
 async function crearTiendaParaNuevoPropietario(datos, uid, email){
   const tiendaId = await generarTiendaIdUnico(datos.tienda);
-  await window.fb.crearTienda(tiendaId, { nombre: datos.tienda, propietarioUid: uid, creada: new Date().toISOString(), pais: datos.pais, rubro: datos.rubro });
+  await window.fb.crearTienda(tiendaId, { nombre: datos.tienda, propietarioUid: uid, creada: new Date().toISOString(), pais: datos.pais, rubro: datos.rubro, plan: 'gratis' });
   await window.fb.guardarUsuario(uid, {
     rol:'propietario', tiendaId, tiendas:[tiendaId], activo:true,
     nombre: datos.nombre, email, telefono: datos.telefono, pais: datos.pais, rubro: datos.rubro
@@ -1963,8 +1977,16 @@ function detenerEscuchaPedidos(){
   if(unsubscribePedidos){ unsubscribePedidos(); unsubscribePedidos = null; }
 }
 
+const ADMIN_UID = 'H54iBGwwGnYQmV3UbgkfID4LU2z1';
 function arrancarEscuchaSesion(){
   window.fb.onAuthChange(async (user)=>{
+    if(user && user.uid === ADMIN_UID){
+      document.getElementById('auth-screen').style.display = 'none';
+      document.getElementById('app-screen').style.display = 'none';
+      document.getElementById('panel-admin-maestro').style.display = 'block';
+      await renderPanelAdmin();
+      return;
+    }
     if(user){
       document.getElementById('auth-screen').style.display = 'none';
       document.getElementById('app-screen').style.display = 'block';
@@ -1973,10 +1995,44 @@ function arrancarEscuchaSesion(){
       await resolverSesion(user);
     } else {
       document.getElementById('app-screen').style.display = 'none';
+      document.getElementById('panel-admin-maestro').style.display = 'none';
       document.getElementById('auth-screen').style.display = 'block';
       currentUid = null; currentRol = null; currentTiendaId = null; currentTiendas = [];
     }
   });
+}
+async function renderPanelAdmin(){
+  const el = document.getElementById('admin-lista-tiendas');
+  el.innerHTML = '<p class="hint">Cargando...</p>';
+  const tiendas = await window.fb.listarTodasLasTiendas();
+  if(!tiendas.length){ el.innerHTML = '<p class="empty">Todavía no hay tiendas creadas.</p>'; return; }
+  el.innerHTML = tiendas.map(t=>{
+    const selId = `admin-plan-${t.id}`;
+    return `<div class="card">
+      <p style="margin:0 0 4px;font-weight:800;">${t.nombre || t.id}</p>
+      <p class="hint" style="margin:0 0 10px;">ID: ${t.id} · Creada: ${t.creada ? t.creada.slice(0,10) : '—'} · Rubro: ${t.rubro || '—'}</p>
+      <div class="row">
+        <select id="${selId}">
+          <option value="gratis" ${(!t.plan || t.plan==='gratis')?'selected':''}>Gratis</option>
+          <option value="starter" ${t.plan==='starter'?'selected':''}>Starter</option>
+          <option value="medio" ${t.plan==='medio'?'selected':''}>Medio</option>
+          <option value="beast" ${t.plan==='beast'?'selected':''}>Beast</option>
+        </select>
+        <button class="mini" onclick="guardarPlanAdmin('${t.id}')">Guardar</button>
+      </div>
+      <p class="hint" id="admin-estado-${t.id}"></p>
+    </div>`;
+  }).join('');
+}
+async function guardarPlanAdmin(tiendaId){
+  const plan = document.getElementById(`admin-plan-${tiendaId}`).value;
+  const estado = document.getElementById(`admin-estado-${tiendaId}`);
+  try{
+    await window.fb.actualizarTienda(tiendaId, { plan });
+    estado.innerHTML = ICONO_CHECK + ' Plan actualizado.';
+  }catch(e){
+    estado.textContent = 'No se pudo guardar. Revisá las reglas de Firestore.';
+  }
 }
 let escaparateCatalogo = null;
 let escaparateCarrito = [];
@@ -2584,6 +2640,7 @@ function cambiarPais(){
 }
 function guardarConfig(){
   state.config.plan = document.getElementById('c-plan').value;
+  window.fb.actualizarTienda(currentTiendaId, { plan: state.config.plan }).catch(e=>console.error(e));
   state.config.tasa = parseFloat(document.getElementById('c-tasa').value) || 0;
   state.config.moneda = document.getElementById('c-moneda').value || '$';
   state.config.sugerenciaEmpaque = document.getElementById('c-sugerencia-empaque').checked;
@@ -4084,12 +4141,13 @@ async function agregarProducto(){
 function renderTiendaOnline(){
   const el = document.getElementById('lista-tienda-online');
   if(!el) return;
+  const permiteFotos = limitesDelPlan().fotosTienda;
   const items = [
     ...state.inventario.filter(p=>!p.grupoNombre || true).map(p=>({tipo:'producto', ref:p})),
     ...state.combos.filter(c=>c.activo).map(c=>({tipo:'combo', ref:c}))
   ];
   if(!items.length){ el.innerHTML = '<p class="empty">Todavía no tenés productos ni combos.</p>'; return; }
-  el.innerHTML = items.map(({tipo, ref})=>{
+  el.innerHTML = (permiteFotos ? '' : `<p class="hint" style="color:var(--rust);">Tu plan actual (${limitesDelPlan().nombre}) no incluye fotos en la Tienda Online — tus productos se muestran solo con nombre, descripción y precio.</p>`) + items.map(({tipo, ref})=>{
     const nombre = tipo==='producto' ? ref.producto : ref.nombre;
     const inputId = `tienda-img-${tipo}-${ref.id}`;
     const selCatId = `tienda-cat-${tipo}-${ref.id}`;
@@ -4108,7 +4166,7 @@ function renderTiendaOnline(){
           <label class="check-line" style="font-size:12px;"><input type="checkbox" ${ref.mostrarTiendaOnline?'checked':''} onchange="toggleVisibilidadTienda('${tipo}',${ref.id},'mostrarTiendaOnline', this.checked)"> Tienda Online</label>
           <div class="actions-icons">
             <input type="file" id="${inputId}" accept="image/*" style="display:none;" onchange="subirFotoTienda('${tipo}',${ref.id}, this)">
-            <button class="btn-icon" title="${ref.imagenUrl?'Cambiar foto':'Agregar foto'}" onclick="document.getElementById('${inputId}').click()">${ICONO_CAJA}</button>
+            <button class="btn-icon" title="${permiteFotos ? (ref.imagenUrl?'Cambiar foto':'Agregar foto') : 'Tu plan no incluye fotos'}" ${permiteFotos?'':'style="opacity:0.4;"'} onclick="${permiteFotos?`document.getElementById('${inputId}').click()`:`mostrarAlerta('Tu plan (${limitesDelPlan().nombre}) no incluye fotos en la Tienda Online.')`}">${ICONO_CAJA}</button>
             <button class="btn-icon" title="Descripción" onclick="editarDescripcionTienda('${tipo}',${ref.id})">${ICONO_LAPIZ}</button>
           </div>
         </div>
@@ -4155,6 +4213,11 @@ function cambiarCategoriaMenuItem(tipo, id, valor){
 async function subirFotoTienda(tipo, id, inputEl){
   const archivo = inputEl.files[0];
   if(!archivo) return;
+  if(!limitesDelPlan().fotosTienda){
+    inputEl.value = '';
+    mostrarAlerta(`Tu plan (${limitesDelPlan().nombre}) no incluye fotos en la Tienda Online. Tus productos se muestran solo con nombre, descripción y precio — subí de plan para agregar fotos.`);
+    return;
+  }
   const lista = tipo==='producto' ? state.inventario : state.combos;
   const item = lista.find(x=>x.id===id);
   if(!item) return;
@@ -5336,6 +5399,13 @@ function limpiarFiltroInventario(){
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal-box" id="modal-box">
     <div id="modal-body"></div>
+  </div>
+</div>
+<div id="panel-admin-maestro" style="display:none;">
+  <div class="wrap">
+    <h1 style="margin:24px 0 4px;">Panel Admin</h1>
+    <p class="hint">Todas las tiendas del sistema. Cambiá el plan de cualquiera y guardá.</p>
+    <div id="admin-lista-tiendas" style="margin-top:20px;"></div>
   </div>
 </div>
 <div id="escaparate-publico" style="display:none;">
