@@ -342,8 +342,8 @@
   #escaparate-publico{ background:var(--surface); min-height:100vh; }
   #escaparate-publico .wrap{ max-width:1100px; }
   #esc-nombre-tienda{ font-weight:900; letter-spacing:-0.02em; }
-  .esc-logo-chip{ display:inline-block; background:#fff; border-radius:var(--radius-md); padding:8px 14px; box-shadow:var(--elev-1); margin-bottom:4px; }
-  .esc-logo-chip img{ display:block; max-height:56px; max-width:180px; object-fit:contain; }
+  .esc-logo-chip{ display:inline-block; margin-bottom:4px; }
+  .esc-logo-chip img{ display:block; max-height:64px; max-width:200px; object-fit:contain; margin:0 auto; }
   #esc-productos{ padding-bottom:90px; }
   .esc-productos-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(100px,1fr)); justify-content:center; gap:12px; margin-top:20px; }
   @media (min-width: 640px){
@@ -491,28 +491,27 @@
     body * { visibility: hidden; }
     #print-area, #print-area * { visibility: visible; }
     #print-area { position: absolute; top: 0; left: 0; width: 100%; }
+    #print-area .cotiz-page { transform: none !important; width: 100% !important; }
+    .cotiz-preview-wrap { overflow: visible !important; height: auto !important; }
   }
 
   .menu-mas-group.vacio{display:none;}
   .actions{display:flex;gap:4px;flex-wrap:wrap;}
-  .cotiz-doc{ font-family: var(--font-sans); color:#222; background:#fff; padding:14px; width:100%; box-sizing:border-box; }
-  .cotiz-header{ background:#1c5aa8; color:#fff; text-align:center; padding:12px; font-size:1.15rem; font-weight:800; letter-spacing:0.02em; }
-  .cotiz-top{ border:1px solid #999; border-top:none; padding:10px; text-align:center; }
-  .cotiz-top img{ max-width:140px; max-height:60px; object-fit:contain; }
-  .cotiz-meta{ border:1px solid #999; border-top:none; font-size:11px; }
-  .cotiz-meta div, .cotiz-cliente div{ display:flex; flex-wrap:wrap; border-bottom:1px solid #ccc; }
-  .cotiz-meta div:last-child, .cotiz-cliente div:last-child{ border-bottom:none; }
-  .cotiz-meta span:first-child, .cotiz-cliente span:first-child{ flex:0 0 80px; padding:4px 6px; background:#f2f2f2; font-weight:700; box-sizing:border-box; }
-  .cotiz-meta span:last-child, .cotiz-cliente span:last-child{ flex:1 1 100px; min-width:0; padding:4px 6px; word-break:break-word; box-sizing:border-box; }
-  .cotiz-cliente{ border:1px solid #999; border-top:none; font-size:11px; }
-  .cotiz-items{ width:100%; border-collapse:collapse; margin-top:12px; font-size:11px; table-layout:fixed; }
-  .cotiz-items th, .cotiz-items td{ border:1px solid #999; padding:5px; word-break:break-word; box-sizing:border-box; }
-  .cotiz-items th{ background:#e8e8e8; }
-  .cotiz-totales{ width:100%; border-collapse:collapse; font-size:12px; table-layout:fixed; }
-  .cotiz-totales td{ border:1px solid #999; padding:6px 8px; box-sizing:border-box; }
-  .cotiz-totales .lbl{ background:#fdf0d5; font-weight:700; text-align:right; width:60%; }
-  .cotiz-totales .val{ background:#d9ead3; font-weight:700; text-align:right; }
-  .cotiz-notas{ font-size:10.5px; font-style:italic; margin-top:12px; line-height:1.5; }
+  .cotiz-preview-wrap{ overflow:hidden; background:var(--surface-container-high); border-radius:var(--radius-md); }
+  .cotiz-page{ width:650px; box-sizing:border-box; padding:50px 55px; background:#fff; color:#2a2a2a; font-family:var(--font-sans); }
+  .cotiz-page-header{ text-align:center; margin-bottom:28px; }
+  .cotiz-page-header img{ max-width:220px; max-height:90px; object-fit:contain; margin-bottom:6px; }
+  .cotiz-page-titulo{ font-size:1.6rem; font-weight:900; letter-spacing:0.04em; color:#1c5aa8; margin:0; }
+  .cotiz-page-sub{ font-size:0.85rem; color:#777; margin:4px 0 0; }
+  .cotiz-linea{ display:flex; justify-content:space-between; font-size:0.85rem; padding:5px 0; border-bottom:1px solid #eee; }
+  .cotiz-linea b{ color:#555; }
+  .cotiz-page-items{ width:100%; border-collapse:collapse; margin:24px 0 0; font-size:0.85rem; }
+  .cotiz-page-items th{ text-align:left; padding:8px 6px; border-bottom:2px solid #2a2a2a; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.04em; color:#555; }
+  .cotiz-page-items td{ padding:8px 6px; border-bottom:1px solid #eee; }
+  .cotiz-page-items .num{ text-align:right; }
+  .cotiz-page-total{ display:flex; justify-content:flex-end; margin-top:14px; }
+  .cotiz-page-total div{ background:#1c5aa8; color:#fff; font-weight:800; font-size:1.1rem; padding:10px 22px; border-radius:6px; }
+  .cotiz-page-notas{ font-size:0.75rem; color:#888; font-style:italic; margin-top:26px; line-height:1.5; }
 </style>
 <style id="print-page-style"></style>
 </head>
@@ -1145,6 +1144,13 @@
         <p class="hint">Un escaparate público con tus productos, sin que el cliente necesite cuenta. Arma su pedido y te lo manda por WhatsApp — vos lo cargás a Ventas como cualquier otra.</p>
         <div class="row"><label class="check-line"><input type="checkbox" id="c-tienda-online-activa" onchange="guardarConfig()"> Activar mi Tienda Online</label></div>
         <div class="field-group"><label>WhatsApp para recibir pedidos (con código de país)</label><input type="text" id="c-whatsapp-tienda" placeholder="Ej. 50370001234" onchange="guardarConfig()"></div>
+        <div class="field-group">
+          <label>Color del encabezado de tu Tienda Online</label>
+          <div class="row" style="align-items:center;flex-wrap:nowrap;">
+            <input type="color" id="c-color-banner" value="#1c5aa8" onchange="guardarConfig()" style="width:50px;height:40px;padding:2px;flex:0 0 auto;">
+            <span class="hint" style="margin:0;">Elegí un color que contraste bien con tu logo.</span>
+          </div>
+        </div>
         <p class="hint">Redes sociales (opcional) — solo aparecen como botones en tu Tienda Online si les ponés algo.</p>
         <div class="field-group"><label>Facebook</label><input type="text" id="c-red-facebook" placeholder="Link a tu página de Facebook" onchange="guardarConfig()"></div>
         <div class="field-group"><label>Instagram</label><input type="text" id="c-red-instagram" placeholder="Usuario o link de Instagram" onchange="guardarConfig()"></div>
@@ -1478,7 +1484,7 @@ function estadoVacioBase(){
     calculosCosto: [], ajustesInventario: [], pedidosCocina: [], mesas: [], eliminacionesVentas: [],
     codigosVendedor: [],
     cotizaciones: [],
-    config: { tasa: 13, moneda: '$', sugerenciaEmpaque:false, moduloCocina:false, cobroCocina:'despues', meseroPuedeCobrar:false, formatoTicket:'carta', formatoEtiquetaQR:'grande', tiendaOnlineActiva:false, whatsappTienda:'', plan:'gratis', logoUrl:null }
+    config: { tasa: 13, moneda: '$', sugerenciaEmpaque:false, moduloCocina:false, cobroCocina:'despues', meseroPuedeCobrar:false, formatoTicket:'carta', formatoEtiquetaQR:'grande', tiendaOnlineActiva:false, whatsappTienda:'', plan:'gratis', logoUrl:null, colorBanner:'#1c5aa8' }
   };
 }
 async function cargarDatosTienda(){
@@ -1536,6 +1542,7 @@ async function cargarDatosTienda(){
   if(document.getElementById('c-formato-etiqueta')) document.getElementById('c-formato-etiqueta').value = state.config.formatoEtiquetaQR || 'grande';
   if(document.getElementById('c-tienda-online-activa')) document.getElementById('c-tienda-online-activa').checked = !!state.config.tiendaOnlineActiva;
   if(document.getElementById('c-whatsapp-tienda')) document.getElementById('c-whatsapp-tienda').value = state.config.whatsappTienda || '';
+  if(document.getElementById('c-color-banner')) document.getElementById('c-color-banner').value = state.config.colorBanner || '#1c5aa8';
   if(document.getElementById('c-red-facebook')) document.getElementById('c-red-facebook').value = state.config.redFacebook || '';
   if(document.getElementById('c-red-instagram')) document.getElementById('c-red-instagram').value = state.config.redInstagram || '';
   if(document.getElementById('c-red-tiktok')) document.getElementById('c-red-tiktok').value = state.config.redTiktok || '';
@@ -1572,6 +1579,7 @@ async function sincronizarCatalogoTienda(){
     tiendaOnlineActiva: !!state.config.tiendaOnlineActiva,
     whatsappTienda: state.config.whatsappTienda || '',
     logoUrl: state.config.logoUrl || null,
+    colorBanner: state.config.colorBanner || '#1c5aa8',
     redFacebook: state.config.redFacebook || '',
     redInstagram: state.config.redInstagram || '',
     redTiktok: state.config.redTiktok || ''
@@ -2192,6 +2200,8 @@ async function iniciarModoEscaparate(tiendaId){
       document.getElementById('esc-estado').textContent = 'Esta tienda no tiene su escaparate activado por el momento.';
       return;
     }
+    const header = document.getElementById('esc-header');
+    if(header && escaparateCatalogo.colorBanner) header.style.background = escaparateCatalogo.colorBanner;
     if(escaparateCatalogo.logoUrl){
       document.getElementById('esc-nombre-tienda').insertAdjacentHTML('beforebegin', `<div class="esc-logo-chip"><img src="${escaparateCatalogo.logoUrl}"></div>`);
       document.getElementById('esc-nombre-tienda').style.display = 'none';
@@ -2809,6 +2819,7 @@ function guardarConfig(){
     state.config.tiendaOnlineActiva = quiereActivarla;
   }
   state.config.whatsappTienda = document.getElementById('c-whatsapp-tienda').value.trim();
+  state.config.colorBanner = document.getElementById('c-color-banner') ? document.getElementById('c-color-banner').value : state.config.colorBanner;
   state.config.redFacebook = document.getElementById('c-red-facebook').value.trim();
   state.config.redInstagram = document.getElementById('c-red-instagram').value.trim();
   state.config.redTiktok = document.getElementById('c-red-tiktok').value.trim();
@@ -3035,39 +3046,51 @@ function verCotizacion(id){
   const cot = state.cotizaciones.find(c=>c.id===id);
   if(!cot) return;
   const nombreTienda = document.getElementById('badge-tienda') ? document.getElementById('badge-tienda').textContent : '';
-  const filas = cot.items.map(it=>`<tr><td>${it.producto}</td><td style="text-align:center;">${it.cantidad}</td><td style="text-align:right;">${fmt(it.precioUnit!==undefined?it.precioUnit:(it.total/it.cantidad))}</td><td style="text-align:right;">${fmt(it.total)}</td></tr>`).join('');
+  const filas = cot.items.map(it=>`<tr><td>${it.producto}</td><td class="num">${it.cantidad}</td><td class="num">${fmt(it.precioUnit!==undefined?it.precioUnit:(it.total/it.cantidad))}</td><td class="num">${fmt(it.total)}</td></tr>`).join('');
   const html = `
-    <div id="print-area">
-      <div class="cotiz-doc">
-        <div class="cotiz-header">COTIZACIÓN</div>
-        <div class="cotiz-top">${state.config.logoUrl ? `<img src="${state.config.logoUrl}">` : `<span style="font-weight:800;color:#1c5aa8;font-size:1.1rem;">${nombreTienda}</span>`}</div>
-        <div class="cotiz-meta">
-          <div><span>Fecha:</span><span>${cot.fecha}</span></div>
-          <div><span>Contacto:</span><span>${state.config.whatsappTienda||'—'}</span></div>
-          ${state.config.logoUrl ? `<div><span>Empresa:</span><span>${nombreTienda}</span></div>` : ''}
+    <div class="cotiz-preview-wrap" id="cotiz-preview-wrap">
+      <div id="print-area">
+        <div class="cotiz-page" id="cotiz-page-inner">
+          <div class="cotiz-page-header">
+            ${state.config.logoUrl ? `<img src="${state.config.logoUrl}">` : ''}
+            <p class="cotiz-page-titulo">${nombreTienda || 'COTIZACIÓN'}</p>
+            <p class="cotiz-page-sub">Cotización · ${cot.fecha}</p>
+          </div>
+          <div class="cotiz-linea"><b>Cliente</b><span>${cot.cliente}</span></div>
+          ${cot.telefono ? `<div class="cotiz-linea"><b>Teléfono</b><span>${cot.telefono}</span></div>` : ''}
+          ${state.config.whatsappTienda ? `<div class="cotiz-linea"><b>Contacto</b><span>${state.config.whatsappTienda}</span></div>` : ''}
+          <table class="cotiz-page-items">
+            <thead><tr><th>Producto</th><th class="num">Cant.</th><th class="num">P. Unit.</th><th class="num">Total</th></tr></thead>
+            <tbody>${filas}</tbody>
+          </table>
+          <div class="cotiz-page-total"><div>TOTAL: ${fmt(cot.total)}</div></div>
+          ${cot.validoHasta ? `<p class="cotiz-page-notas">Cotización válida hasta ${cot.validoHasta}.</p>` : ''}
+          ${cot.notas ? `<p class="cotiz-page-notas">${cot.notas}</p>` : ''}
         </div>
-        <div class="cotiz-cliente">
-          <div><span>Nombre:</span><span>${cot.cliente}</span></div>
-          <div><span>Teléfono:</span><span>${cot.telefono||'—'}</span></div>
-        </div>
-        <table class="cotiz-items">
-          <thead><tr><th>Producto</th><th>Cantidad</th><th>Precio unitario</th><th>Total</th></tr></thead>
-          <tbody>${filas}</tbody>
-        </table>
-        <table class="cotiz-totales">
-          <tr><td class="lbl">TOTAL</td><td class="val">${fmt(cot.total)}</td></tr>
-        </table>
-        ${cot.validoHasta ? `<p class="cotiz-notas">Cotización válida hasta ${cot.validoHasta}.</p>` : ''}
-        ${cot.notas ? `<p class="cotiz-notas">${cot.notas}</p>` : ''}
       </div>
     </div>
     <div class="row" style="margin-top:14px;">
       <button class="secondary" type="button" onclick="enviarCotizacionWhatsApp(${cot.id})">Enviar por WhatsApp</button>
       <button class="secondary" type="button" onclick="enviarCotizacionEmail(${cot.id})">Enviar por correo</button>
     </div>
-    <div class="row"><button class="secondary" onclick="closeModal()">Cerrar</button><button onclick="imprimirTicketActual()">Imprimir / Guardar PDF</button></div>
+    <div class="row"><button class="secondary" onclick="closeModal()">Cerrar</button><button onclick="imprimirCotizacionActual()">Imprimir / Guardar PDF</button></div>
   `;
   openModal(html);
+  requestAnimationFrame(()=>{
+    const wrap = document.getElementById('cotiz-preview-wrap');
+    const page = document.getElementById('cotiz-page-inner');
+    if(wrap && page){
+      const escala = Math.min(1, wrap.clientWidth / 650);
+      page.style.transform = `scale(${escala})`;
+      page.style.transformOrigin = 'top left';
+      wrap.style.height = (page.offsetHeight * escala) + 'px';
+    }
+  });
+}
+function imprimirCotizacionActual(){
+  const el = document.getElementById('print-page-style');
+  if(el) el.textContent = `@page{ size:letter; margin:1.5cm; }`;
+  window.print();
 }
 function enviarCotizacionWhatsApp(id){
   const cot = state.cotizaciones.find(c=>c.id===id);
@@ -5778,7 +5801,7 @@ function limpiarFiltroInventario(){
   </div>
 </div>
 <div id="escaparate-publico" style="display:none;">
-  <div style="background:linear-gradient(135deg, var(--primary-container), var(--surface-container)); padding:36px 20px 28px; text-align:center;">
+  <div id="esc-header" style="background:linear-gradient(135deg, var(--primary-container), var(--surface-container)); padding:36px 20px 28px; text-align:center;">
     <h1 id="esc-nombre-tienda" style="margin:0;font-size:1.9rem;"></h1>
     <p class="hint" id="esc-estado" style="margin-top:6px;"></p>
     <div id="esc-redes" style="display:flex;justify-content:center;gap:10px;margin-top:14px;"></div>
