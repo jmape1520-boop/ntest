@@ -104,6 +104,12 @@
       await uploadBytes(r, archivo);
       return await getDownloadURL(r);
     },
+    subirLogoTienda: async (tiendaId, archivo) => {
+      if(!storage) throw new Error('Storage no está disponible todavía.');
+      const r = ref(storage, `tiendas/${tiendaId}/logo.jpg`);
+      await uploadBytes(r, archivo);
+      return await getDownloadURL(r);
+    },
     borrarImagenProducto: async (tiendaId, codigoProducto) => {
       if(!storage) return;
       const r = ref(storage, `tiendas/${tiendaId}/productos/${codigoProducto}.jpg`);
@@ -487,6 +493,28 @@
 
   .menu-mas-group.vacio{display:none;}
   .actions{display:flex;gap:4px;flex-wrap:wrap;}
+  .cotiz-doc{ font-family: var(--font-sans); color:#222; background:#fff; padding:16px; max-width:600px; margin:0 auto; }
+  .cotiz-header{ background:#1c5aa8; color:#fff; text-align:center; padding:14px; font-size:1.3rem; font-weight:800; letter-spacing:0.03em; }
+  .cotiz-top{ display:flex; border:1px solid #999; border-top:none; }
+  .cotiz-logo-cell{ flex:0 0 130px; display:flex; align-items:center; justify-content:center; padding:8px; border-right:1px solid #999; }
+  .cotiz-meta{ flex:1; }
+  .cotiz-meta div{ display:flex; border-bottom:1px solid #ccc; font-size:12px; }
+  .cotiz-meta div:last-child{ border-bottom:none; }
+  .cotiz-meta span:first-child{ flex:0 0 90px; padding:4px 8px; background:#f2f2f2; font-weight:700; }
+  .cotiz-meta span:last-child{ flex:1; padding:4px 8px; }
+  .cotiz-cliente{ border:1px solid #999; border-top:none; font-size:12px; }
+  .cotiz-cliente div{ display:flex; border-bottom:1px solid #ccc; }
+  .cotiz-cliente div:last-child{ border-bottom:none; }
+  .cotiz-cliente span:first-child{ flex:0 0 90px; padding:4px 8px; background:#f2f2f2; font-weight:700; }
+  .cotiz-cliente span:last-child{ flex:1; padding:4px 8px; }
+  .cotiz-items{ width:100%; border-collapse:collapse; margin-top:14px; font-size:12px; }
+  .cotiz-items th{ background:#e8e8e8; border:1px solid #999; padding:6px; }
+  .cotiz-items td{ border:1px solid #999; padding:6px; }
+  .cotiz-totales{ width:100%; border-collapse:collapse; margin-top:0; font-size:12px; }
+  .cotiz-totales td{ border:1px solid #999; padding:6px 8px; }
+  .cotiz-totales .lbl{ background:#fdf0d5; font-weight:700; text-align:right; width:70%; }
+  .cotiz-totales .val{ background:#d9ead3; font-weight:700; text-align:right; }
+  .cotiz-notas{ font-size:11px; font-style:italic; margin-top:14px; line-height:1.5; }
 </style>
 <style id="print-page-style"></style>
 </head>
@@ -1223,6 +1251,16 @@
       </div>
     </div>
 
+    <div class="accordion propietario-only" id="acc-marca" style="display:none;">
+      <div class="accordion-head" onclick="toggleAccordion('acc-marca')"><span>Marca</span><span class="chev">▾</span></div>
+      <div class="accordion-body">
+        <p class="hint">Tu logo aparece en las cotizaciones y en los tickets de venta impresos.</p>
+        <div id="logo-preview" style="margin-bottom:8px;"></div>
+        <input type="file" id="logo-input" accept="image/*" onchange="subirLogoTienda(this)">
+        <p class="hint" id="logo-estado"></p>
+      </div>
+    </div>
+
     <div class="accordion" id="acc-datos">
       <div class="accordion-head" onclick="toggleAccordion('acc-datos')"><span>Datos</span><span class="chev">▾</span></div>
       <div class="accordion-body">
@@ -1442,7 +1480,7 @@ function estadoVacioBase(){
     calculosCosto: [], ajustesInventario: [], pedidosCocina: [], mesas: [], eliminacionesVentas: [],
     codigosVendedor: [],
     cotizaciones: [],
-    config: { tasa: 13, moneda: '$', sugerenciaEmpaque:false, moduloCocina:false, cobroCocina:'despues', meseroPuedeCobrar:false, formatoTicket:'carta', formatoEtiquetaQR:'grande', tiendaOnlineActiva:false, whatsappTienda:'', plan:'gratis' }
+    config: { tasa: 13, moneda: '$', sugerenciaEmpaque:false, moduloCocina:false, cobroCocina:'despues', meseroPuedeCobrar:false, formatoTicket:'carta', formatoEtiquetaQR:'grande', tiendaOnlineActiva:false, whatsappTienda:'', plan:'gratis', logoUrl:null }
   };
 }
 async function cargarDatosTienda(){
@@ -2983,28 +3021,52 @@ function guardarCotizacion(){
   verCotizacion(cot.id);
 }
 function textoCotizacion(cot){
+  const nombreTienda = document.getElementById('badge-tienda') ? document.getElementById('badge-tienda').textContent : '';
   const lineas = cot.items.map(it=>`• ${it.cantidad}x ${it.producto} — ${fmt(it.total)}`).join('\n');
-  return `Cotización para ${cot.cliente} — ${cot.fecha}\n\n${lineas}\n\nTotal: ${fmt(cot.total)}` +
+  return `*Cotización — ${nombreTienda}*\nPara: ${cot.cliente}\nFecha: ${cot.fecha}\n\n${lineas}\n\n*Total: ${fmt(cot.total)}*` +
     (cot.validoHasta ? `\nVálida hasta: ${cot.validoHasta}` : '') +
-    (cot.notas ? `\n\nNotas: ${cot.notas}` : '') +
-    `\n\n${document.getElementById('badge-tienda')?document.getElementById('badge-tienda').textContent:''}`;
+    (cot.notas ? `\n\n${cot.notas}` : '') +
+    `\n\n¿Querés el PDF formal? Pedímelo y te lo mando.`;
 }
 function verCotizacion(id){
   const cot = state.cotizaciones.find(c=>c.id===id);
   if(!cot) return;
-  const lineas = cot.items.map(it=>`<div class="tline"><span>${it.cantidad}x ${it.producto}</span><span>${fmt(it.total)}</span></div>`).join('');
-  openModal(`
-    <h3>Cotización — ${cot.cliente}</h3>
-    <p class="hint">${cot.fecha}${cot.validoHasta?' · Válida hasta '+cot.validoHasta:''}</p>
-    ${lineas}
-    <div class="tline" style="font-weight:700;border-top:1px solid var(--outline-variant);padding-top:8px;margin-top:6px;"><span>Total</span><span>${fmt(cot.total)}</span></div>
-    ${cot.notas?`<p class="hint" style="margin-top:8px;">${cot.notas}</p>`:''}
+  const nombreTienda = document.getElementById('badge-tienda') ? document.getElementById('badge-tienda').textContent : '';
+  const filas = cot.items.map(it=>`<tr><td>${it.producto}</td><td style="text-align:center;">${it.cantidad}</td><td style="text-align:right;">${fmt(it.precioUnit!==undefined?it.precioUnit:(it.total/it.cantidad))}</td><td style="text-align:right;">${fmt(it.total)}</td></tr>`).join('');
+  const html = `
+    <div id="print-area">
+      <div class="cotiz-doc">
+        <div class="cotiz-header">COTIZACIÓN</div>
+        <div class="cotiz-top">
+          <div class="cotiz-logo-cell">${state.config.logoUrl ? `<img src="${state.config.logoUrl}" style="max-width:110px;max-height:60px;object-fit:contain;">` : `<span style="font-weight:800;color:#1c5aa8;">${nombreTienda}</span>`}</div>
+          <div class="cotiz-meta">
+            <div><span>Fecha:</span><span>${cot.fecha}</span></div>
+            <div><span>Contacto:</span><span>${state.config.whatsappTienda||'—'}</span></div>
+            <div><span>Empresa:</span><span>${nombreTienda}</span></div>
+          </div>
+        </div>
+        <div class="cotiz-cliente">
+          <div><span>Nombre:</span><span>${cot.cliente}</span></div>
+          <div><span>Teléfono:</span><span>${cot.telefono||'—'}</span></div>
+        </div>
+        <table class="cotiz-items">
+          <thead><tr><th>Producto</th><th>Cantidad</th><th>Precio unitario</th><th>Total</th></tr></thead>
+          <tbody>${filas}</tbody>
+        </table>
+        <table class="cotiz-totales">
+          <tr><td class="lbl">TOTAL</td><td class="val">${fmt(cot.total)}</td></tr>
+        </table>
+        ${cot.validoHasta ? `<p class="cotiz-notas">Cotización válida hasta ${cot.validoHasta}.</p>` : ''}
+        ${cot.notas ? `<p class="cotiz-notas">${cot.notas}</p>` : ''}
+      </div>
+    </div>
     <div class="row" style="margin-top:14px;">
       <button class="secondary" type="button" onclick="enviarCotizacionWhatsApp(${cot.id})">Enviar por WhatsApp</button>
       <button class="secondary" type="button" onclick="enviarCotizacionEmail(${cot.id})">Enviar por correo</button>
     </div>
-    <div class="row"><button class="secondary" onclick="closeModal()">Cerrar</button></div>
-  `);
+    <div class="row"><button class="secondary" onclick="closeModal()">Cerrar</button><button onclick="imprimirTicketActual()">Imprimir / Guardar PDF</button></div>
+  `;
+  openModal(html);
 }
 function enviarCotizacionWhatsApp(id){
   const cot = state.cotizaciones.find(c=>c.id===id);
@@ -3772,6 +3834,7 @@ function mostrarTicket(v){
   const html = `
     <div id="print-area">
       <div class="ticket">
+        ${state.config.logoUrl ? `<div style="text-align:center;margin-bottom:6px;"><img src="${state.config.logoUrl}" style="max-height:50px;max-width:140px;object-fit:contain;"></div>` : ''}
         <div style="text-align:center;font-weight:700;margin-bottom:4px;">TICKET DE VENTA</div>
         <div style="text-align:center;" class="hint">${v.codigoVenta} · ${v.fecha}</div>
         <hr>
@@ -4361,6 +4424,29 @@ function renderTiendaOnline(){
       ${(state.config.moduloCocina || state.config.menuRapidoActivo) ? `<div class="field-group" style="margin-top:8px;margin-bottom:0;"><select id="${selCatId}" onchange="cambiarCategoriaMenuItem('${tipo}',${ref.id}, this.value)"><option value="">Sin categoría de menú</option>${state.categoriasMenu.map(c=>`<option value="${c}" ${ref.categoriaMenu===c?'selected':''}>${c}</option>`).join('')}</select></div>` : ''}
     </div>`;
   }).join('');
+}
+async function subirLogoTienda(inputEl){
+  const archivo = inputEl.files[0];
+  if(!archivo) return;
+  if(archivo.size > PESO_MAX_IMAGEN_MB * 1024 * 1024){
+    inputEl.value = '';
+    mostrarAlerta(`Ese logo pesa más de ${PESO_MAX_IMAGEN_MB} MB. Comprimilo o elegí uno más liviano.`);
+    return;
+  }
+  document.getElementById('logo-estado').textContent = 'Subiendo...';
+  try{
+    state.config.logoUrl = await window.fb.subirLogoTienda(currentTiendaId, archivo);
+    guardar();
+    renderLogoPreview();
+    document.getElementById('logo-estado').textContent = 'Listo.';
+  }catch(e){
+    document.getElementById('logo-estado').textContent = 'No se pudo subir. Revisá tu conexión e intentá de nuevo.';
+  }
+}
+function renderLogoPreview(){
+  const el = document.getElementById('logo-preview');
+  if(!el) return;
+  el.innerHTML = state.config.logoUrl ? `<img src="${state.config.logoUrl}" style="max-width:140px;max-height:80px;object-fit:contain;border-radius:8px;background:var(--surface-container-high);padding:6px;">` : '<p class="empty">Todavía no subiste un logo.</p>';
 }
 function editarDescripcionTienda(tipo, id){
   const lista = tipo==='producto' ? state.inventario : state.combos;
@@ -5355,6 +5441,7 @@ function render(){
   renderCocina();
   renderMesas();
   renderCategoriasMenuConfig();
+  renderLogoPreview();
   renderMenuRapido();
   renderTiposFiscales();
   renderCotizaciones();
