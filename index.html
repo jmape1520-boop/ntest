@@ -1573,6 +1573,7 @@ async function sincronizarCatalogoTienda(){
     sugerenciaEmpaque: state.config.sugerenciaEmpaque,
     tiendaOnlineActiva: !!state.config.tiendaOnlineActiva,
     whatsappTienda: state.config.whatsappTienda || '',
+    logoUrl: state.config.logoUrl || null,
     redFacebook: state.config.redFacebook || '',
     redInstagram: state.config.redInstagram || '',
     redTiktok: state.config.redTiktok || ''
@@ -2192,6 +2193,9 @@ async function iniciarModoEscaparate(tiendaId){
     if(!escaparateCatalogo.tiendaOnlineActiva){
       document.getElementById('esc-estado').textContent = 'Esta tienda no tiene su escaparate activado por el momento.';
       return;
+    }
+    if(escaparateCatalogo.logoUrl){
+      document.getElementById('esc-nombre-tienda').insertAdjacentHTML('beforebegin', `<img src="${escaparateCatalogo.logoUrl}" style="max-height:64px;max-width:180px;object-fit:contain;margin-bottom:8px;">`);
     }
     renderRedesEscaparate();
     renderProductosEscaparate();
