@@ -356,6 +356,8 @@
   #esc-carrito-flotante button{ box-shadow:var(--elev-2); font-weight:800; padding:14px 28px; border-radius:var(--radius-full); }
   .esc-red-btn{ width:38px; height:38px; border-radius:50%; background:var(--surface); color:var(--primary); display:flex; align-items:center; justify-content:center; box-shadow:var(--elev-1); }
   .esc-red-btn:hover{ background:var(--primary-container); }
+  .inv-select-col{ display:none; }
+  .inv-card-seleccionable{ border:2px solid var(--primary); }
   .mini-card:hover{ background:var(--surface-container-high); }
   .mini-card .mc-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; min-width:0; }
   .mini-card .mc-row > div:first-child{ min-width:0; flex:1 1 auto; }
@@ -687,8 +689,16 @@
         <input type="text" id="vf-texto" placeholder="Código, producto o cliente">
         <button class="mini" onclick="render()">Aplicar</button>
         <button class="mini" onclick="limpiarFiltro('v')">Limpiar</button>
+        <button class="btn-tool" type="button" id="ventas-btn-seleccionar" onclick="toggleModoSeleccionVentas()" style="margin-left:auto;">Seleccionar</button>
       </div>
       <div id="lista-ventas"></div>
+    </div>
+  </div>
+  <div id="ventas-barra-seleccion" style="display:none;position:fixed;bottom:16px;left:0;right:0;text-align:center;z-index:60;">
+    <div class="card" style="display:inline-flex;align-items:center;gap:12px;padding:10px 16px;box-shadow:var(--elev-2);">
+      <span class="hint" id="ventas-seleccion-count" style="margin:0;">0 seleccionadas</span>
+      <button class="danger" style="min-height:auto;padding:8px 14px;" onclick="borrarSeleccionVentas()">Eliminar</button>
+      <button class="secondary" style="min-height:auto;padding:8px 14px;" onclick="toggleModoSeleccionVentas()">Cancelar</button>
     </div>
   </div>
 
@@ -900,8 +910,16 @@
           <label class="check-line"><input type="checkbox" id="if-solo-insumos" onchange="render()"> Insumos</label>
         </div>
         <button class="btn-icon" title="Limpiar filtros" onclick="limpiarFiltroInventario()"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+        <button class="btn-tool" type="button" id="inv-btn-seleccionar" onclick="toggleModoSeleccionInventario()" style="margin-left:auto;">Seleccionar</button>
       </div>
       <div id="lista-inventario"></div>
+    </div>
+  </div>
+  <div id="inv-barra-seleccion" style="display:none;position:fixed;bottom:16px;left:0;right:0;text-align:center;z-index:60;">
+    <div class="card" style="display:inline-flex;align-items:center;gap:12px;padding:10px 16px;box-shadow:var(--elev-2);">
+      <span class="hint" id="inv-seleccion-count" style="margin:0;">0 seleccionados</span>
+      <button class="danger" style="min-height:auto;padding:8px 14px;" onclick="borrarSeleccionInventario()">Eliminar</button>
+      <button class="secondary" style="min-height:auto;padding:8px 14px;" onclick="toggleModoSeleccionInventario()">Cancelar</button>
     </div>
   </div>
 
@@ -3906,11 +3924,76 @@ function confirmarBorrarVenta(id){
   const motivo = motivoSel==='otro' ? document.getElementById('bv-motivo-otro').value.trim() : motivoSel;
   if(!motivo){ document.getElementById('bv-error').textContent = 'Contanos el motivo.'; return; }
   const devolverStock = document.getElementById('bv-devolver-stock').checked;
+  eliminarVentaInterno(v, motivo, devolverStock);
+  guardar(); render(); closeModal();
+}
+function eliminarVentaInterno(v, motivo, devolverStock){
   state.eliminacionesVentas = state.eliminacionesVentas || [];
   state.eliminacionesVentas.unshift({ fecha:new Date().toISOString().slice(0,10), codigoVenta:v.codigoVenta, total:v.total, motivo, devolvioStock:devolverStock, eliminadoPor: currentNombre||'—' });
   if(devolverStock) v.items.forEach(it=>ajustarStockPorItem(it, 1));
-  state.ventas = state.ventas.filter(x=>x.id!==id);
+  state.ventas = state.ventas.filter(x=>x.id!==v.id);
+}
+let modoSeleccionVentas = false;
+function toggleModoSeleccionVentas(){
+  modoSeleccionVentas = !modoSeleccionVentas;
+  document.getElementById('ventas-btn-seleccionar').textContent = modoSeleccionVentas ? 'Cancelar selección' : 'Seleccionar';
+  document.getElementById('ventas-barra-seleccion').style.display = 'none';
+  document.getElementById('ventas-seleccion-count').textContent = '0 seleccionadas';
+  render();
+}
+function toggleCheckMovilVentas(id){
+  const chk = document.querySelector(`#lista-ventas input.venta-check[value="${id}"]`);
+  if(chk){ chk.checked = !chk.checked; actualizarSeleccionVentas(); }
+}
+function actualizarSeleccionVentas(){
+  const marcadas = document.querySelectorAll('#lista-ventas input.venta-check:checked');
+  document.getElementById('ventas-seleccion-count').textContent = `${marcadas.length} seleccionada${marcadas.length===1?'':'s'}`;
+  document.getElementById('ventas-barra-seleccion').style.display = marcadas.length ? 'block' : 'none';
+}
+function borrarSeleccionVentas(){
+  const ids = Array.from(document.querySelectorAll('#lista-ventas input.venta-check:checked')).map(el=>Number(el.value));
+  if(!ids.length) return;
+  const hayComida = ids.some(id=>{ const v = state.ventas.find(x=>x.id===id); return v && v.items.some(it=>it.esCombo); });
+  openModal(`
+    <h3>Eliminar ${ids.length} venta${ids.length===1?'':'s'}</h3>
+    <p class="hint">El mismo motivo se aplica a todas. Esta acción queda registrada.</p>
+    <div class="row"><label class="check-line"><input type="checkbox" id="bsv-devolver-stock" ${hayComida?'':'checked'}> Devolver este stock al inventario</label></div>
+    <p class="hint">${hayComida ? 'Detectamos combos/recetas en algunas — si ya se prepararon, no se pueden recuperar. Marcá solo si de verdad no se usó nada.' : 'Marcado por defecto porque no llevan combos ni recetas.'}</p>
+    <div class="field-group">
+      <label>Motivo</label>
+      <select id="bsv-motivo">
+        <option value="Error al registrar">Error al registrar</option>
+        <option value="Cliente se arrepintió">Cliente se arrepintió</option>
+        <option value="Producto equivocado">Producto equivocado</option>
+        <option value="otro">Otro</option>
+      </select>
+    </div>
+    <div class="field-group" id="bsv-motivo-otro-wrap" style="display:none;"><input type="text" id="bsv-motivo-otro" placeholder="Contanos qué pasó"></div>
+    <p class="hint" id="bsv-error" style="color:var(--rust);"></p>
+    <div class="row">
+      <button class="secondary" onclick="closeModal()">Cancelar</button>
+      <button class="danger" onclick="confirmarBorrarSeleccionVentas()">Eliminar ${ids.length}</button>
+    </div>
+  `);
+  document.getElementById('bsv-motivo').addEventListener('change', function(){
+    document.getElementById('bsv-motivo-otro-wrap').style.display = this.value==='otro' ? 'block' : 'none';
+  });
+}
+function confirmarBorrarSeleccionVentas(){
+  const ids = Array.from(document.querySelectorAll('#lista-ventas input.venta-check:checked')).map(el=>Number(el.value));
+  const motivoSel = document.getElementById('bsv-motivo').value;
+  const motivo = motivoSel==='otro' ? document.getElementById('bsv-motivo-otro').value.trim() : motivoSel;
+  if(!motivo){ document.getElementById('bsv-error').textContent = 'Contanos el motivo.'; return; }
+  const devolverStock = document.getElementById('bsv-devolver-stock').checked;
+  ids.forEach(id=>{
+    const v = state.ventas.find(x=>x.id===id);
+    if(v) eliminarVentaInterno(v, motivo, devolverStock);
+  });
+  modoSeleccionVentas = false;
+  document.getElementById('ventas-btn-seleccionar').textContent = 'Seleccionar';
+  document.getElementById('ventas-barra-seleccion').style.display = 'none';
   guardar(); render(); closeModal();
+  mostrarAlerta(`${ids.length} venta${ids.length===1?'':'s'} eliminada${ids.length===1?'':'s'}.`);
 }
 
 let scannerControls = null;
@@ -5349,21 +5432,24 @@ function render(){
     const avisoViejo = document.getElementById('aviso-historial-limitado');
     if(avisoViejo) avisoViejo.remove();
   }
-  document.getElementById('lista-ventas').innerHTML = ventasF.length ? `<div class="desktop-table-wrap"><div class="table-scroll"><table><thead><tr><th>Cód.</th><th>Fecha</th><th>Productos</th><th>Cliente</th><th>Pago</th><th class="num">Desc.</th><th class="num">Base</th><th class="num">Impuesto</th><th class="num">Total</th><th class="center">Envío</th><th class="center">Enviado</th><th></th></tr></thead><tbody>${ventasF.map(v=>{
+  document.getElementById('lista-ventas').innerHTML = ventasF.length ? `<div class="desktop-table-wrap"><div class="table-scroll"><table><thead><tr><th class="inv-select-col" ${modoSeleccionVentas?'style="display:table-cell;"':''}></th><th>Cód.</th><th>Fecha</th><th>Productos</th><th>Cliente</th><th>Pago</th><th class="num">Desc.</th><th class="num">Base</th><th class="num">Impuesto</th><th class="num">Total</th><th class="center">Envío</th><th class="center">Enviado</th><th></th></tr></thead><tbody>${ventasF.map(v=>{
     const resumenItems = v.items.map(it=>`<span class="code" style="margin-right:2px;">${it.codigo||'—'}</span>${it.cantidad}x ${it.producto}${it.promoAplicada?' '+ICONO_TAG:''}`).join('<br>');
     const nombrePago = {efectivo:'Efectivo',tarjeta:'Tarjeta',transferencia:'Transferencia',pagare:'Pagaré',fiado:'Fiado'}[v.metodoPago] || v.metodoPago;
     const pagoCelda = (v.metodoPago==='fiado'||v.metodoPago==='pagare') ? `${nombrePago} <span class="tag ${v.estadoPago==='pagado'?'ok':'low'}">${v.estadoPago==='pagado'?'Pagado':'Pendiente'}</span>` : nombrePago;
-    return `<tr><td><span class="code">${v.codigoVenta}</span></td><td>${v.fecha}</td><td>${resumenItems}${v.vendedorAplicado?` <span class="tag ok">${ICONO_PERSONA} Cód. vendedor</span>`:''}${v.historial.length?` <span class="tag edit" onclick="verHistorial(${v.id})">editado x${v.historial.length}</span>`:''}</td><td>${v.cliente||'—'}<br><span class="hint" style="margin:0;">${ICONO_PERSONA} ${v.registradoPor.nombre}</span></td><td>${pagoCelda}</td><td class="num">${v.descuentoMonto?fmt(v.descuentoMonto):'—'}</td><td class="num">${fmt(v.subtotal)}</td><td class="num">${fmt(v.impuesto)}</td><td class="num">${fmt(v.total)}</td><td class="center">${v.requiereEnvio?`<span class="tag low" style="cursor:pointer;" onclick="verEnvio(${v.id})">${ICONO_CAJA}</span>`:'—'}</td><td class="center"><input type="checkbox" ${v.enviado?'checked':''} onchange="toggleEnviado(${v.id})"></td><td><div class="actions-icons"><button class="btn-icon" title="Ver ticket" onclick="mostrarTicketPorId(${v.id})">${ICONO_TICKET}</button><button class="btn-icon venta-accion-editar" title="Editar" onclick="editarVenta(${v.id})">${ICONO_LAPIZ}</button><button class="btn-icon danger venta-accion-editar" title="Eliminar" onclick="borrarVenta(${v.id})">${ICONO_BASURA}</button></div></td></tr>`;
+    return `<tr><td class="inv-select-col" ${modoSeleccionVentas?'style="display:table-cell;"':''}><input type="checkbox" class="venta-check" value="${v.id}" onchange="actualizarSeleccionVentas()"></td><td><span class="code">${v.codigoVenta}</span></td><td>${v.fecha}</td><td>${resumenItems}${v.vendedorAplicado?` <span class="tag ok">${ICONO_PERSONA} Cód. vendedor</span>`:''}${v.historial.length?` <span class="tag edit" onclick="verHistorial(${v.id})">editado x${v.historial.length}</span>`:''}</td><td>${v.cliente||'—'}<br><span class="hint" style="margin:0;">${ICONO_PERSONA} ${v.registradoPor.nombre}</span></td><td>${pagoCelda}</td><td class="num">${v.descuentoMonto?fmt(v.descuentoMonto):'—'}</td><td class="num">${fmt(v.subtotal)}</td><td class="num">${fmt(v.impuesto)}</td><td class="num">${fmt(v.total)}</td><td class="center">${v.requiereEnvio?`<span class="tag low" style="cursor:pointer;" onclick="verEnvio(${v.id})">${ICONO_CAJA}</span>`:'—'}</td><td class="center"><input type="checkbox" ${v.enviado?'checked':''} onchange="toggleEnviado(${v.id})"></td><td><div class="actions-icons"><button class="btn-icon" title="Ver ticket" onclick="mostrarTicketPorId(${v.id})">${ICONO_TICKET}</button><button class="btn-icon venta-accion-editar" title="Editar" onclick="editarVenta(${v.id})">${ICONO_LAPIZ}</button><button class="btn-icon danger venta-accion-editar" title="Eliminar" onclick="borrarVenta(${v.id})">${ICONO_BASURA}</button></div></td></tr>`;
   }).join('')}</tbody></table></div></div>
   <div class="mobile-card-list">${ventasF.map(v=>{
     const nombrePago = {efectivo:'Efectivo',tarjeta:'Tarjeta',transferencia:'Transferencia',pagare:'Pagaré',fiado:'Fiado'}[v.metodoPago] || v.metodoPago;
     const esPendiente = (v.metodoPago==='fiado'||v.metodoPago==='pagare') && v.estadoPago!=='pagado';
     const etiquetaPago = (v.metodoPago==='fiado'||v.metodoPago==='pagare') ? (v.estadoPago==='pagado'?'Pagado':'Pendiente') : nombrePago;
-    return `<div class="mini-card" onclick="abrirAccionesVentaMovil(${v.id})">
+    return `<div class="mini-card${modoSeleccionVentas?' inv-card-seleccionable':''}" onclick="${modoSeleccionVentas?`toggleCheckMovilVentas(${v.id})`:`abrirAccionesVentaMovil(${v.id})`}">
       <div class="mc-row">
-        <div>
-          <p class="mc-title">${v.cliente || 'Venta directa'}${v.requiereEnvio?` ${ICONO_CAJA}`:''}</p>
-          <p class="hint mc-sub">${v.codigoVenta} · ${v.fecha}${v.historial.length?` · editado x${v.historial.length}`:''}</p>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${modoSeleccionVentas?`<input type="checkbox" class="venta-check" value="${v.id}" onclick="event.stopPropagation();" onchange="actualizarSeleccionVentas()">`:''}
+          <div>
+            <p class="mc-title">${v.cliente || 'Venta directa'}${v.requiereEnvio?` ${ICONO_CAJA}`:''}</p>
+            <p class="hint mc-sub">${v.codigoVenta} · ${v.fecha}${v.historial.length?` · editado x${v.historial.length}`:''}</p>
+          </div>
         </div>
         <div class="mc-right">
           <p class="mc-price">${fmt(v.total)}</p>
@@ -5506,10 +5592,10 @@ document.getElementById('lista-combos').innerHTML = state.combos.length ? state.
       gruposVistos.add(p.grupoNombre);
       const cantidadEnGrupo = inventarioFiltrado.filter(x=>x.grupoNombre===p.grupoNombre).length;
       const colapsado = gruposColapsados.has(p.grupoNombre);
-      filaGrupo = `<tr style="background:var(--primary-soft);cursor:pointer;" onclick="toggleGrupoColapsado('${p.grupoNombre.replace(/'/g,"\\'")}')"><td colspan="5" style="font-weight:700;font-size:12px;">${colapsado?'▸':'▾'} ${p.grupoNombre} <span class="hint" style="margin:0;">(${cantidadEnGrupo} variantes)</span></td><td onclick="event.stopPropagation();"><div class="actions-icons"><button class="btn-icon" title="Editar grupo" onclick="editarGrupoVariantes('${p.grupoNombre.replace(/'/g,"\\'")}')">${ICONO_LAPIZ}</button><button class="btn-icon danger" title="Eliminar grupo" onclick="borrarGrupoVariantes('${p.grupoNombre.replace(/'/g,"\\'")}')">${ICONO_BASURA}</button></div></td></tr>`;
+      filaGrupo = `<tr style="background:var(--primary-soft);cursor:pointer;" onclick="toggleGrupoColapsado('${p.grupoNombre.replace(/'/g,"\\'")}')"><td class="inv-select-col" ${modoSeleccionInventario?'style="display:table-cell;"':''}></td><td colspan="5" style="font-weight:700;font-size:12px;">${colapsado?'▸':'▾'} ${p.grupoNombre} <span class="hint" style="margin:0;">(${cantidadEnGrupo} variantes)</span></td><td onclick="event.stopPropagation();"><div class="actions-icons"><button class="btn-icon" title="Editar grupo" onclick="editarGrupoVariantes('${p.grupoNombre.replace(/'/g,"\\'")}')">${ICONO_LAPIZ}</button><button class="btn-icon danger" title="Eliminar grupo" onclick="borrarGrupoVariantes('${p.grupoNombre.replace(/'/g,"\\'")}')">${ICONO_BASURA}</button></div></td></tr>`;
     }
     if(p.grupoNombre && gruposColapsados.has(p.grupoNombre)) return filaGrupo;
-    return filaGrupo + `<tr><td><span class="code">${p.codigo}</span></td><td>${p.grupoNombre ? '↳ '+p.producto.replace(p.grupoNombre,'').trim() : p.producto}${p.categoria?` <span class="hint" style="margin:0;">· ${p.categoria}</span>`:''}${p.esInsumo?` <span class="tag edit">Insumo</span>`:''}</td><td class="num">${fmtCantidad(p.stock, p.unidad)}</td><td class="num">${p.precioVenta?fmt(p.precioVenta):'—'}</td><td>${p.stock<=p.reorden ? '<span class="tag low">Reordenar</span>' : '<span class="tag ok">Ok</span>'}</td><td><div class="actions-icons">${p.qr?`<button class="btn-icon" title="Ver QR" onclick="verQR('${p.codigo}')">${ICONO_QRCHICO}</button>`:''}<button class="btn-icon" title="Ajustar stock" onclick="abrirAjusteInventario(${p.id})">${ICONO_SLIDERS}</button><button class="btn-icon" title="Editar" onclick="editarProducto(${p.id})">${ICONO_LAPIZ}</button><button class="btn-icon danger" title="Eliminar" onclick="borrarProducto(${p.id})">${ICONO_BASURA}</button></div></td></tr>`;
+    return filaGrupo + `<tr><td class="inv-select-col" ${modoSeleccionInventario?'style="display:table-cell;"':''} onclick="event.stopPropagation();"><input type="checkbox" class="inv-check" value="${p.id}" onchange="actualizarSeleccionInventario()"></td><td><span class="code">${p.codigo}</span></td><td>${p.grupoNombre ? '↳ '+p.producto.replace(p.grupoNombre,'').trim() : p.producto}${p.categoria?` <span class="hint" style="margin:0;">· ${p.categoria}</span>`:''}${p.esInsumo?` <span class="tag edit">Insumo</span>`:''}</td><td class="num">${fmtCantidad(p.stock, p.unidad)}</td><td class="num">${p.precioVenta?fmt(p.precioVenta):'—'}</td><td>${p.stock<=p.reorden ? '<span class="tag low">Reordenar</span>' : '<span class="tag ok">Ok</span>'}</td><td><div class="actions-icons">${p.qr?`<button class="btn-icon" title="Ver QR" onclick="verQR('${p.codigo}')">${ICONO_QRCHICO}</button>`:''}<button class="btn-icon" title="Ajustar stock" onclick="abrirAjusteInventario(${p.id})">${ICONO_SLIDERS}</button><button class="btn-icon" title="Editar" onclick="editarProducto(${p.id})">${ICONO_LAPIZ}</button><button class="btn-icon danger" title="Eliminar" onclick="borrarProducto(${p.id})">${ICONO_BASURA}</button></div></td></tr>`;
   }).join('');
 
   const gruposVistosMovil = new Set();
@@ -5528,11 +5614,14 @@ document.getElementById('lista-combos').innerHTML = state.combos.length ? state.
     }
     if(p.grupoNombre && gruposColapsados.has(p.grupoNombre)) return tarjetaGrupo;
     const nombreMostrado = p.grupoNombre ? '↳ '+p.producto.replace(p.grupoNombre,'').trim() : p.producto;
-    return tarjetaGrupo + `<div class="mini-card" onclick="abrirAccionesProductoMovil(${p.id})">
+    return tarjetaGrupo + `<div class="mini-card${modoSeleccionInventario?' inv-card-seleccionable':''}" onclick="${modoSeleccionInventario?`toggleCheckMovil(${p.id})`:`abrirAccionesProductoMovil(${p.id})`}">
       <div class="mc-row">
-        <div>
-          <p class="mc-title">${nombreMostrado}${p.esInsumo?' <span class="tag edit">Insumo</span>':''}</p>
-          <p class="hint mc-sub">${p.codigo}${p.categoria?' · '+p.categoria:''}</p>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${modoSeleccionInventario?`<input type="checkbox" class="inv-check" value="${p.id}" onclick="event.stopPropagation();" onchange="actualizarSeleccionInventario()">`:''}
+          <div>
+            <p class="mc-title">${nombreMostrado}${p.esInsumo?' <span class="tag edit">Insumo</span>':''}</p>
+            <p class="hint mc-sub">${p.codigo}${p.categoria?' · '+p.categoria:''}</p>
+          </div>
         </div>
         <div class="mc-right">
           <p class="mc-price">${p.precioVenta?fmt(p.precioVenta):'—'}</p>
@@ -5542,7 +5631,37 @@ document.getElementById('lista-combos').innerHTML = state.combos.length ? state.
     </div>`;
   }).join('');
 
-  document.getElementById('lista-inventario').innerHTML = inventarioFiltrado.length ? `<div class="desktop-table-wrap"><div class="table-scroll"><table><thead><tr><th>Código</th><th>Producto</th><th class="num">Stock</th><th class="num">Precio venta</th><th>Estado</th><th></th></tr></thead><tbody>${filasInventario}</tbody></table></div></div><div class="mobile-card-list">${tarjetasInventario}</div>` : (state.inventario.length ? '<div class="empty">No hay productos con ese filtro.</div>' : '<div class="empty">Todavía no agregás productos.</div>');
+  document.getElementById('lista-inventario').innerHTML = inventarioFiltrado.length ? `<div class="desktop-table-wrap"><div class="table-scroll"><table><thead><tr><th class="inv-select-col" ${modoSeleccionInventario?'style="display:table-cell;"':''}></th><th>Código</th><th>Producto</th><th class="num">Stock</th><th class="num">Precio venta</th><th>Estado</th><th></th></tr></thead><tbody>${filasInventario}</tbody></table></div></div><div class="mobile-card-list">${tarjetasInventario}</div>` : (state.inventario.length ? '<div class="empty">No hay productos con ese filtro.</div>' : '<div class="empty">Todavía no agregás productos.</div>');
+}
+let modoSeleccionInventario = false;
+function toggleModoSeleccionInventario(){
+  modoSeleccionInventario = !modoSeleccionInventario;
+  document.getElementById('inv-btn-seleccionar').textContent = modoSeleccionInventario ? 'Cancelar selección' : 'Seleccionar';
+  document.getElementById('inv-barra-seleccion').style.display = 'none';
+  document.getElementById('inv-seleccion-count').textContent = '0 seleccionados';
+  render();
+}
+function toggleCheckMovil(id){
+  const chk = document.querySelector(`#lista-inventario input.inv-check[value="${id}"]`);
+  if(chk){ chk.checked = !chk.checked; actualizarSeleccionInventario(); }
+}
+function actualizarSeleccionInventario(){
+  const marcados = document.querySelectorAll('#lista-inventario input.inv-check:checked');
+  const barra = document.getElementById('inv-barra-seleccion');
+  document.getElementById('inv-seleccion-count').textContent = `${marcados.length} seleccionado${marcados.length===1?'':'s'}`;
+  barra.style.display = marcados.length ? 'block' : 'none';
+}
+function borrarSeleccionInventario(){
+  const ids = Array.from(document.querySelectorAll('#lista-inventario input.inv-check:checked')).map(el=>Number(el.value));
+  if(!ids.length) return;
+  confirmarAccion(`¿Eliminar ${ids.length} producto${ids.length===1?'':'s'}? Esto no se puede deshacer.`, ()=>{
+    state.inventario = state.inventario.filter(p=>!ids.includes(p.id));
+    modoSeleccionInventario = false;
+    document.getElementById('inv-btn-seleccionar').textContent = 'Seleccionar';
+    document.getElementById('inv-barra-seleccion').style.display = 'none';
+    guardar(); render();
+    mostrarAlerta(`${ids.length} producto${ids.length===1?'':'s'} eliminado${ids.length===1?'':'s'}.`);
+  });
 }
 function limpiarFiltroInventario(){
   document.getElementById('if-texto').value = '';
