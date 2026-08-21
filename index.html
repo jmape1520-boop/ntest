@@ -3049,7 +3049,7 @@ function textoCotizacion(cot){
   return `*Cotización — ${nombreTienda}*\nPara: ${cot.cliente}\nFecha: ${cot.fecha}\n\n${lineas}\n\n*Total: ${fmt(cot.total)}*` +
     (cot.validoHasta ? `\nVálida hasta: ${cot.validoHasta}` : '') +
     (cot.notas ? `\n\n${cot.notas}` : '') +
-    `\n\n¿Querés el PDF formal? Pedímelo y te lo mando.`;
+    `\n\nPuedes solicitar tu cotización formal si es necesario.`;
 }
 function verCotizacion(id){
   const cot = state.cotizaciones.find(c=>c.id===id);
