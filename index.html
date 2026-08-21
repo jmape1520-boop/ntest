@@ -342,6 +342,8 @@
   #escaparate-publico{ background:var(--surface); min-height:100vh; }
   #escaparate-publico .wrap{ max-width:1100px; }
   #esc-nombre-tienda{ font-weight:900; letter-spacing:-0.02em; }
+  .esc-logo-chip{ display:inline-block; background:#fff; border-radius:var(--radius-md); padding:8px 14px; box-shadow:var(--elev-1); margin-bottom:4px; }
+  .esc-logo-chip img{ display:block; max-height:56px; max-width:180px; object-fit:contain; }
   #esc-productos{ padding-bottom:90px; }
   .esc-productos-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(100px,1fr)); justify-content:center; gap:12px; margin-top:20px; }
   @media (min-width: 640px){
@@ -493,28 +495,24 @@
 
   .menu-mas-group.vacio{display:none;}
   .actions{display:flex;gap:4px;flex-wrap:wrap;}
-  .cotiz-doc{ font-family: var(--font-sans); color:#222; background:#fff; padding:16px; max-width:600px; margin:0 auto; }
-  .cotiz-header{ background:#1c5aa8; color:#fff; text-align:center; padding:14px; font-size:1.3rem; font-weight:800; letter-spacing:0.03em; }
-  .cotiz-top{ display:flex; border:1px solid #999; border-top:none; }
-  .cotiz-logo-cell{ flex:0 0 130px; display:flex; align-items:center; justify-content:center; padding:8px; border-right:1px solid #999; }
-  .cotiz-meta{ flex:1; }
-  .cotiz-meta div{ display:flex; border-bottom:1px solid #ccc; font-size:12px; }
-  .cotiz-meta div:last-child{ border-bottom:none; }
-  .cotiz-meta span:first-child{ flex:0 0 90px; padding:4px 8px; background:#f2f2f2; font-weight:700; }
-  .cotiz-meta span:last-child{ flex:1; padding:4px 8px; }
-  .cotiz-cliente{ border:1px solid #999; border-top:none; font-size:12px; }
-  .cotiz-cliente div{ display:flex; border-bottom:1px solid #ccc; }
-  .cotiz-cliente div:last-child{ border-bottom:none; }
-  .cotiz-cliente span:first-child{ flex:0 0 90px; padding:4px 8px; background:#f2f2f2; font-weight:700; }
-  .cotiz-cliente span:last-child{ flex:1; padding:4px 8px; }
-  .cotiz-items{ width:100%; border-collapse:collapse; margin-top:14px; font-size:12px; }
-  .cotiz-items th{ background:#e8e8e8; border:1px solid #999; padding:6px; }
-  .cotiz-items td{ border:1px solid #999; padding:6px; }
-  .cotiz-totales{ width:100%; border-collapse:collapse; margin-top:0; font-size:12px; }
-  .cotiz-totales td{ border:1px solid #999; padding:6px 8px; }
-  .cotiz-totales .lbl{ background:#fdf0d5; font-weight:700; text-align:right; width:70%; }
+  .cotiz-doc{ font-family: var(--font-sans); color:#222; background:#fff; padding:14px; width:100%; box-sizing:border-box; }
+  .cotiz-header{ background:#1c5aa8; color:#fff; text-align:center; padding:12px; font-size:1.15rem; font-weight:800; letter-spacing:0.02em; }
+  .cotiz-top{ border:1px solid #999; border-top:none; padding:10px; text-align:center; }
+  .cotiz-top img{ max-width:140px; max-height:60px; object-fit:contain; }
+  .cotiz-meta{ border:1px solid #999; border-top:none; font-size:11px; }
+  .cotiz-meta div, .cotiz-cliente div{ display:flex; flex-wrap:wrap; border-bottom:1px solid #ccc; }
+  .cotiz-meta div:last-child, .cotiz-cliente div:last-child{ border-bottom:none; }
+  .cotiz-meta span:first-child, .cotiz-cliente span:first-child{ flex:0 0 80px; padding:4px 6px; background:#f2f2f2; font-weight:700; box-sizing:border-box; }
+  .cotiz-meta span:last-child, .cotiz-cliente span:last-child{ flex:1 1 100px; min-width:0; padding:4px 6px; word-break:break-word; box-sizing:border-box; }
+  .cotiz-cliente{ border:1px solid #999; border-top:none; font-size:11px; }
+  .cotiz-items{ width:100%; border-collapse:collapse; margin-top:12px; font-size:11px; table-layout:fixed; }
+  .cotiz-items th, .cotiz-items td{ border:1px solid #999; padding:5px; word-break:break-word; box-sizing:border-box; }
+  .cotiz-items th{ background:#e8e8e8; }
+  .cotiz-totales{ width:100%; border-collapse:collapse; font-size:12px; table-layout:fixed; }
+  .cotiz-totales td{ border:1px solid #999; padding:6px 8px; box-sizing:border-box; }
+  .cotiz-totales .lbl{ background:#fdf0d5; font-weight:700; text-align:right; width:60%; }
   .cotiz-totales .val{ background:#d9ead3; font-weight:700; text-align:right; }
-  .cotiz-notas{ font-size:11px; font-style:italic; margin-top:14px; line-height:1.5; }
+  .cotiz-notas{ font-size:10.5px; font-style:italic; margin-top:12px; line-height:1.5; }
 </style>
 <style id="print-page-style"></style>
 </head>
@@ -2195,7 +2193,8 @@ async function iniciarModoEscaparate(tiendaId){
       return;
     }
     if(escaparateCatalogo.logoUrl){
-      document.getElementById('esc-nombre-tienda').insertAdjacentHTML('beforebegin', `<img src="${escaparateCatalogo.logoUrl}" style="max-height:64px;max-width:180px;object-fit:contain;margin-bottom:8px;">`);
+      document.getElementById('esc-nombre-tienda').insertAdjacentHTML('beforebegin', `<div class="esc-logo-chip"><img src="${escaparateCatalogo.logoUrl}"></div>`);
+      document.getElementById('esc-nombre-tienda').style.display = 'none';
     }
     renderRedesEscaparate();
     renderProductosEscaparate();
@@ -3041,13 +3040,11 @@ function verCotizacion(id){
     <div id="print-area">
       <div class="cotiz-doc">
         <div class="cotiz-header">COTIZACIÓN</div>
-        <div class="cotiz-top">
-          <div class="cotiz-logo-cell">${state.config.logoUrl ? `<img src="${state.config.logoUrl}" style="max-width:110px;max-height:60px;object-fit:contain;">` : `<span style="font-weight:800;color:#1c5aa8;">${nombreTienda}</span>`}</div>
-          <div class="cotiz-meta">
-            <div><span>Fecha:</span><span>${cot.fecha}</span></div>
-            <div><span>Contacto:</span><span>${state.config.whatsappTienda||'—'}</span></div>
-            <div><span>Empresa:</span><span>${nombreTienda}</span></div>
-          </div>
+        <div class="cotiz-top">${state.config.logoUrl ? `<img src="${state.config.logoUrl}">` : `<span style="font-weight:800;color:#1c5aa8;font-size:1.1rem;">${nombreTienda}</span>`}</div>
+        <div class="cotiz-meta">
+          <div><span>Fecha:</span><span>${cot.fecha}</span></div>
+          <div><span>Contacto:</span><span>${state.config.whatsappTienda||'—'}</span></div>
+          ${state.config.logoUrl ? `<div><span>Empresa:</span><span>${nombreTienda}</span></div>` : ''}
         </div>
         <div class="cotiz-cliente">
           <div><span>Nombre:</span><span>${cot.cliente}</span></div>
