@@ -1094,7 +1094,14 @@
         <button class="secondary" type="button" onclick="agregarItemCotizacion()">+ Agregar</button>
       </div>
       <div id="cot-carrito"></div>
+      <div class="field-group">
+        <label>Nota</label>
+        <select id="cot-notas-preset" onchange="aplicarNotaPreset()">
+          <option value="">Escribir mi propia nota</option>
+        </select>
+      </div>
       <div class="row"><input type="text" id="cot-notas" placeholder="Notas (opcional, ej. incluye instalación)"></div>
+      <div class="row"><button class="btn-tool" type="button" onclick="abrirNotasGuardadas()">Editar mis notas guardadas</button></div>
       <div class="row"><button onclick="guardarCotizacion()">Generar cotización</button></div>
     </div>
     <div class="card">
@@ -1415,6 +1422,7 @@ function normalizarEstado(){
   state.eliminacionesVentas = state.eliminacionesVentas || [];
   state.mesas = state.mesas || [];
   state.cotizaciones = state.cotizaciones || [];
+  state.notasCotizacionPresets = state.notasCotizacionPresets || ['', '', ''];
   if(state.categoriasMenu===undefined){
     state.categoriasMenu = CATEGORIAS_POR_RUBRO[state.config.rubro] ? [...CATEGORIAS_POR_RUBRO[state.config.rubro]] : [];
   }
@@ -3031,6 +3039,7 @@ function guardarCotizacion(){
   carritoCotizacion = [];
   renderCarritoCotizacion();
   ['cot-cliente','cot-telefono','cot-email','cot-valido-hasta','cot-notas'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('cot-notas-preset').value = '';
   guardar(); render();
   verCotizacion(cot.id);
 }
@@ -3052,8 +3061,7 @@ function verCotizacion(id){
       <div id="print-area">
         <div class="cotiz-page" id="cotiz-page-inner">
           <div class="cotiz-page-header">
-            ${state.config.logoUrl ? `<img src="${state.config.logoUrl}">` : ''}
-            <p class="cotiz-page-titulo">${nombreTienda || 'COTIZACIÓN'}</p>
+            ${state.config.logoUrl ? `<img src="${state.config.logoUrl}">` : `<p class="cotiz-page-titulo">${nombreTienda || 'COTIZACIÓN'}</p>`}
             <p class="cotiz-page-sub">Cotización · ${cot.fecha}</p>
           </div>
           <div class="cotiz-linea"><b>Cliente</b><span>${cot.cliente}</span></div>
@@ -3112,6 +3120,34 @@ function borrarCotizacion(id){
     state.cotizaciones = state.cotizaciones.filter(c=>c.id!==id);
     guardar(); render();
   });
+}
+function renderNotasPreset(){
+  const sel = document.getElementById('cot-notas-preset');
+  if(!sel) return;
+  const actual = sel.value;
+  sel.innerHTML = '<option value="">Escribir mi propia nota</option>' + state.notasCotizacionPresets.map((n,i)=>
+    n.trim() ? `<option value="${i}">Nota ${i+1}: ${n.slice(0,30)}${n.length>30?'…':''}</option>` : ''
+  ).join('');
+  if([...sel.options].some(o=>o.value===actual)) sel.value = actual;
+}
+function aplicarNotaPreset(){
+  const sel = document.getElementById('cot-notas-preset');
+  if(sel.value === '') return;
+  document.getElementById('cot-notas').value = state.notasCotizacionPresets[Number(sel.value)] || '';
+}
+function abrirNotasGuardadas(){
+  openModal(`
+    <h3>Mis notas guardadas</h3>
+    <p class="hint">Hasta 3 notas que podés reutilizar en cualquier cotización sin escribirlas de nuevo.</p>
+    ${[0,1,2].map(i=>`<div class="field-group"><label>Nota ${i+1}</label><input type="text" id="nota-preset-${i}" value="${(state.notasCotizacionPresets[i]||'').replace(/"/g,'&quot;')}" placeholder="Ej. Incluye instalación y garantía de 6 meses"></div>`).join('')}
+    <div class="row"><button class="secondary" onclick="closeModal()">Cancelar</button><button onclick="guardarNotasGuardadas()">Guardar</button></div>
+  `);
+}
+function guardarNotasGuardadas(){
+  state.notasCotizacionPresets = [0,1,2].map(i=>document.getElementById(`nota-preset-${i}`).value.trim());
+  guardar();
+  renderNotasPreset();
+  closeModal();
 }
 function renderCotizaciones(){
   const el = document.getElementById('lista-cotizaciones');
@@ -5469,6 +5505,7 @@ function render(){
   renderMenuRapido();
   renderTiposFiscales();
   renderCotizaciones();
+  renderNotasPreset();
   renderTiendaOnline();
   renderPedidosListosParaCobrar();
   renderSugerenciaEmpaque();
