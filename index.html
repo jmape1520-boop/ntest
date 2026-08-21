@@ -1356,7 +1356,7 @@ function normalizarEstado(){
   state.mesas = state.mesas || [];
   state.cotizaciones = state.cotizaciones || [];
   if(state.categoriasMenu===undefined){
-    state.categoriasMenu = ['Entradas', 'Platos fuertes', 'Bebidas', 'Postres'];
+    state.categoriasMenu = CATEGORIAS_POR_RUBRO[state.config.rubro] ? [...CATEGORIAS_POR_RUBRO[state.config.rubro]] : [];
   }
   state.combos.forEach(c=>{
     if(c.categoriaMenu===undefined) c.categoriaMenu = '';
@@ -1631,7 +1631,7 @@ const CATEGORIAS_POR_RUBRO = {
   servicios: ['Servicios']
 };
 function categoriasParaRubro(){
-  return CATEGORIAS_POR_RUBRO[state.config.rubro] || [];
+  return state.categoriasMenu || [];
 }
 function poblarSelectCategoria(selectId, valorActual){
   const sel = document.getElementById(selectId);
@@ -4546,7 +4546,12 @@ function onCategoriaChange(selectId, textId){
 function leerCategoriaSeleccionada(selectId, textId){
   const sel = document.getElementById(selectId);
   if(!sel) return '';
-  return sel.value==='otro' ? document.getElementById(textId).value.trim() : sel.value;
+  if(sel.value !== 'otro') return sel.value;
+  const nueva = document.getElementById(textId).value.trim();
+  if(nueva && !state.categoriasMenu.some(c=>c.toLowerCase()===nueva.toLowerCase())){
+    state.categoriasMenu.push(nueva);
+  }
+  return nueva;
 }
 function onEpEsInsumoChange(){
   document.getElementById('ep-insumo-wrap').style.display = document.getElementById('ep-es-insumo').checked ? 'block' : 'none';
